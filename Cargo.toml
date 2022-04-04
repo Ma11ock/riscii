@@ -1,0 +1,11 @@
+[package]
+name = "risc-ii"
+version = "0.1.0"
+authors = ["Ryan Jeffrey <ryan@ryanmj.xyz>"]
+license = "AGPL-3.0"
+description = "Emulator for the Berkely RISC-II microprocessor"
+homepage = "https://github.com/Ma11ock/risc-ii"
+keywords = ["emulator", "risc"]
+publish = false
+[profile.dev]
+overflow-checks = false
