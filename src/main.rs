@@ -17,6 +17,8 @@ mod main_test;
 
 extern crate core;
 
+mod config;
+
 use core::convert::TryInto;
 use std::fs;
 
@@ -372,7 +374,7 @@ fn get_program(path: &String) -> Result<Vec<u8>, String> {
     println!("Opening binary file {}.", path);
 
     Ok(match fs::read(path) {
-        Ok(mut raw_p) => raw_p.to_vec(),
+        Ok(raw_p) => raw_p.to_vec(),
         Err(raw_e) => return Err(raw_e.to_string()),
     })
 }
@@ -388,7 +390,13 @@ fn decode_file(file: &Vec<u8>, pos: usize) -> Result<(), DecodeError> {
 }
 
 fn main() -> Result<(), String> {
-    let program = get_program(&String::from("test.bin"))?;
+    let config = config::Config::init()?;
+
+    println!(
+        "Running emulator with the following configuration: \n{}\n",
+        config
+    );
+    //let program = get_program(&String::from("test.bin"))?;
 
     Ok(())
 }
