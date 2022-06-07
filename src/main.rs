@@ -15,6 +15,11 @@
 #[cfg(test)]
 mod main_test;
 
+extern crate core;
+
+use core::convert::TryInto;
+use std::fs;
+
 enum Conditional {
     /// Greater than.
     Gt,
@@ -79,23 +84,70 @@ enum ShortSource {
 /// it is relative to PC (PC + imm19). If it has the letter `x` instead,
 /// the load is register indexed.
 enum Instruction {
-    /// Privileged instruction: call
-    Calli(bool, u8, u8, ShortSource),
-
+    /// Call interrupt.
+    /// Notes:
+    /// - PRIVILEGED INSTRUCTION.
+    /// - The `RS1` and `RS1` registers are read from the OLD window.
+    /// - The PC instruction saved is the `PC` at the `CALLI`.
+    /// - The `Rd` refers to the destination register in the NEW window.
+    /// - If the change to `CWP` makes it equal to `SWP`: stop execution,
+    /// generate a trap, and go to address 0x80000020.
+    /// CWP := CWP - 1 MOD 8, rd := LSTPC; CC's have same rules as getipc.
+    Calli(bool, u8),
+    /// Get pointer to window. rd := (-1)<31:13> & PSW<12:0>;
     GetPSW(bool, u8, u8, ShortSource),
-
+    /// Get the last Program Counter. rd := LSTPC.
+    /// Iff SCC == true, Z := [LSTPC == 0]; N := LSTPC<31>; V,C := garbage.
+    /// Notes:
+    /// - PRIVILEGED INSTRUCTION.
     GetIPC(bool, u8, u8, ShortSource),
-
+    /// Set PSW. PSW := [rs1 + ShortSource2]<12:0>;
+    /// Notes:
+    /// - PRIVILEGED INSTRUCTION.
+    /// - SCC-bit MUST be false.
+    /// - The next instruction CANNOT be `CALLX`, `CALLR`, CALLI`, `RET`, `RETI`,
+    /// i.e. it cannot modify CWP. It also must not set the CC's.
+    /// - Rd is discarded.
+    /// - New PSW is not in effect until AFTER the next cycle following execution
+    /// of this instruction.
     PutPSW(bool, u8, u8, ShortSource),
-
+    /// Call procedure at `shortSource` + `rs1`.
+    /// - The `RS1` and `RS1` registers are read from the OLD window.
+    /// - The PC instruction saved is the `PC` at the `CALLI`.
+    /// - The `Rd` refers to the destination register in the NEW window.
+    /// - If the change to `CWP` makes it equal to `SWP`: stop execution,
+    /// generate a trap, and go to address 0x80000020.
+    /// CWP := CWP - 1 MOD 8, rd := PC; CC's have same rules as getipc.
     Callx(bool, u8, u8, ShortSource),
-
+    /// Call procedure at `PC` + `imm19`.
+    /// - The `RS1` and `RS1` registers are read from the OLD window.
+    /// - The PC instruction saved is the `PC` at the `CALLI`.
+    /// - The `Rd` refers to the destination register in the NEW window.
+    /// - If the change to `CWP` makes it equal to `SWP`: stop execution,
+    /// generate a trap, and go to address 0x80000020.
+    /// CWP := CWP - 1 MOD 8, rd := PC; CC's have same rules as getipc.
     Callr(bool, u8, u32),
-
+    /// If conditional is true: PC := `rs1` + `shortSource`;
     Jmpx(bool, Conditional, u8, ShortSource),
+    /// If conditional is true: PC += `imm19`;
+    /// Test alignment: if newPC<0> == 1 then abort instruction and jump
+    /// to 0x80000000.
     Jmpr(bool, Conditional, u32),
-    Ret(bool, u8, u8, ShortSource),
-    Reti(bool, u8, u8, ShortSource),
+    /// Return from the current procedure if conditional is true.
+    /// CWP := CWP + 1 MOD 8.
+    /// Notes:
+    /// - `rs1` and `rs1` are read from the OLD window.
+    /// - The usual use case of this instruction is with target address
+    /// `rs1` + 8 (with `rs1`=`rd` of the call).
+    Ret(bool, Conditional, u8, ShortSource),
+    /// Return from interrupt if condition is true.
+    /// CWP := CWP + 1 MOD 8.
+    /// Notes:
+    /// - PRIVILEGED INSTRUCTION.
+    /// - `rs1` and `rs1` are read from the OLD window.
+    /// - The usual use case of this instruction is with target address
+    /// `rs1` + 8 (with `rs1`=`rd` of the call).
+    Reti(bool, Conditional, u8, ShortSource),
 
     /// Shift left logical.
     Sll(bool, u8, u8, ShortSource),
@@ -122,11 +174,11 @@ enum Instruction {
     /// Subtract inverse: d := s2 - s1; (d := s2 + NOT(s1))
     Subi(bool, u8, u8, ShortSource),
     /// Subtract inverse with constant: d := s2 - s1 - NOT(C); (d := s2 - s1 - NOT(C))
-    Subic(bool, u8, u8, ShortSource),
+    Subci(bool, u8, u8, ShortSource),
 
     /// Load high: Load 19 bit immediate into top 19 bits of destination register,
-    /// leaving the bottom 13 bits untouched.
-    Ldhi(bool, u8, u8, ShortSource),
+    ///  and set the bottom 13 bits to 0.
+    Ldhi(bool, u8, u32),
     /// Load word, register indexed.
     Ldxw(bool, u8, u8, ShortSource),
     /// Load word, long-immediate.
@@ -166,6 +218,177 @@ enum Instruction {
     Strb(bool, u8, u32),
 }
 
+enum DecodeError {
+    /// Indicates an invalid instruction. The first u32 indicates which bits are invalid,
+    /// the final u32 is the whole opcode.
+    InvalidInstruction(u32, u32),
+    InvalidJumpCondition,
+
+    /// Indicates some bug in this program with a string description.
+    CodeError(String),
+}
+
+/// Get the RISC-II conditional type from a opcode<22-19>.
+/// opcode A RISC-II opcode.
+/// return RISC-II conditional, or DecodeError if 0.
+fn get_cond_from_opcode(opcode: u32) -> Result<Conditional, DecodeError> {
+    type C = Conditional;
+    Ok(match (opcode & 0x780000) >> 18 {
+        1 => C::Gt,
+        2 => C::Le,
+        3 => C::Ge,
+        4 => C::Lt,
+        5 => C::Hi,
+        6 => C::Los,
+        7 => C::Lonc,
+        8 => C::Hisc,
+        9 => C::Pl,
+        10 => C::Mi,
+        11 => C::Ne,
+        12 => C::Eq,
+        13 => C::Nv,
+        14 => C::V,
+        15 => C::Alw,
+        _ => return Err(DecodeError::InvalidJumpCondition),
+    })
+}
+
+fn decode(opcode: u32) -> Result<Instruction, DecodeError> {
+    type I = Instruction;
+    // SCC flag (<24>).
+    let scc = opcode & 0x1000000 != 0;
+    // Destination bits (<23-19>).
+    let dest = ((opcode & 0xF80000) >> 18) as u8;
+    // Short-immediate RS1 value (<18-14>).
+    let rs1 = ((opcode & 0x7C000) >> 13) as u8;
+    // Immediate-mode bottom 19 bits <18-0>.
+    let imm19 = opcode & 0x7FFFF;
+    // Short source immediate-mode bottom 13 bits <12-0> or rs1 <4-0>.
+    let short_source = if opcode & 0x2000 != 0 {
+        ShortSource::UImm13(opcode & 0x1fff)
+    } else {
+        ShortSource::Reg((opcode & 0x1f) as u8)
+    }; // TODO fix ambiguous sign problem.
+       // The opcode itself.
+    let op = (opcode & 0xFE) >> 24;
+
+    let cond = get_cond_from_opcode(opcode);
+
+    // Math the opcode's prefix.
+    Ok(match op >> 5 {
+        // Match the bottom four bytes of the opcode's prefix.
+        0 => match op & 0xF {
+            0 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
+            1 => I::Calli(scc, dest),
+            2 => I::GetPSW(scc, dest, rs1, short_source),
+            3 => I::GetIPC(scc, dest, rs1, short_source),
+            4 => I::PutPSW(scc, dest, rs1, short_source),
+            5..=7 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
+            8 => I::Callx(scc, dest, rs1, short_source),
+            9 => I::Callr(scc, dest, imm19),
+            10..=11 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
+            12 => I::Jmpx(scc, cond?, rs1, short_source),
+            13 => I::Jmpr(scc, cond?, imm19),
+            14 => I::Ret(scc, cond?, rs1, short_source),
+            15 => I::Reti(scc, cond?, rs1, short_source),
+            // Should never be reached.
+            _ => {
+                return Err(DecodeError::CodeError(String::from(
+                    "Match bottom four bytes of opcode prefix",
+                )))
+            }
+        },
+        1 => match op & 0xF {
+            0 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
+            1 => I::Sll(scc, dest, rs1, short_source),
+            2 => I::Sra(scc, dest, rs1, short_source),
+            3 => I::Srl(scc, dest, rs1, short_source),
+            4 => I::Ldhi(scc, dest, imm19),
+            5 => I::And(scc, dest, rs1, short_source),
+            6 => I::Or(scc, dest, rs1, short_source),
+            7 => I::Xor(scc, dest, rs1, short_source),
+            8 => I::Add(scc, dest, rs1, short_source),
+            9 => I::Addc(scc, dest, rs1, short_source),
+            10..=11 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
+            12 => I::Sub(scc, dest, rs1, short_source),
+            13 => I::Subc(scc, dest, rs1, short_source),
+            14 => I::Subi(scc, dest, rs1, short_source),
+            15 => I::Subci(scc, dest, rs1, short_source),
+            // Should never be reached.
+            _ => {
+                return Err(DecodeError::CodeError(String::from(
+                    "Match bottom four bytes of opcode prefix",
+                )))
+            }
+        },
+        2 => match op & 0xF {
+            0..=5 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
+            6 => I::Ldxw(scc, dest, rs1, short_source),
+            7 => I::Ldrw(scc, dest, imm19),
+            8 => I::Ldxhu(scc, dest, rs1, short_source),
+            9 => I::Ldrhu(scc, dest, imm19),
+            10 => I::Ldxhs(scc, dest, rs1, short_source),
+            11 => I::Ldrhs(scc, dest, imm19),
+            12 => I::Ldxbu(scc, dest, rs1, short_source),
+            13 => I::Ldrbu(scc, dest, imm19),
+            14 => I::Ldxbs(scc, dest, rs1, short_source),
+            15 => I::Ldrbs(scc, dest, imm19),
+            // Should never be reached.
+            _ => {
+                return Err(DecodeError::CodeError(String::from(
+                    "Match bottom four bytes of opcode prefix",
+                )))
+            }
+        },
+        3 => match op & 0xF {
+            0..=5 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
+            6 => I::Stxw(scc, dest, rs1, short_source),
+            7 => I::Strw(scc, dest, imm19),
+            8..=9 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
+            10 => I::Stxh(scc, dest, rs1, short_source),
+            11 => I::Strh(scc, dest, imm19),
+            12..=13 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
+            14 => I::Stxb(scc, dest, rs1, short_source),
+            15 => I::Strb(scc, dest, imm19),
+            // Should never be reached.
+            _ => {
+                return Err(DecodeError::CodeError(String::from(
+                    "Match bottom four bytes of opcode prefix",
+                )))
+            }
+        },
+        // Top bit is 1, meaning an extension opcode.
+        4..=8 => match opcode {
+            // TODO
+            _ => return Err(DecodeError::CodeError(String::from("Not yet implemented!"))),
+        },
+        _ => return Err(DecodeError::InvalidInstruction(0x8, opcode)),
+    })
+}
+
+fn load_firmware(file: &String) {}
+
+fn get_program(path: &String) -> Result<Vec<u8>, String> {
+    println!("Opening binary file {}.", path);
+
+    Ok(match fs::read(path) {
+        Ok(mut raw_p) => raw_p.to_vec(),
+        Err(raw_e) => return Err(raw_e.to_string()),
+    })
+}
+
+fn decode_file(file: &Vec<u8>, pos: usize) -> Result<(), DecodeError> {
+    let result = 0usize;
+
+    for i in (0..file.len()).step_by(4) {
+        decode(u32::from_ne_bytes(file[pos..pos + 4].try_into().unwrap()))?;
+    }
+
+    Ok(())
+}
+
 fn main() -> Result<(), String> {
+    let program = get_program(&String::from("test.bin"))?;
+
     Ok(())
 }
