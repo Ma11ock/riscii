@@ -9,3 +9,9 @@ keywords = ["emulator", "risc"]
 publish = false
 [profile.dev]
 overflow-checks = false
+[dependencies]
+toml = "0.5.9"
+serde = "1.0.137"
+serde_derive = "1.0.137"
+[dependencies.sdl2]
+version = "0.35"

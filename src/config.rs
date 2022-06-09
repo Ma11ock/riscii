@@ -15,23 +15,36 @@
 
 // Struct definitions.
 
+extern crate serde;
+extern crate serde_derive;
+extern crate toml;
+
 use std::env;
 use std::env::JoinPathsError;
 use std::ffi::OsString;
 use std::fmt;
+use std::fs;
 use std::path::Path;
 
+use self::serde_derive::{Deserialize, Serialize};
+
 /// Configuration of the emulator.
+#[derive(Deserialize)]
 pub struct Config {
     /// Amount of memory the system will have.
+    #[serde(default)]
     mem: u32,
     /// Number of CPUs the system will have.
+    #[serde(default)]
     ncpu: u32,
     /// Path to the configuration directory.
+    #[serde(default)]
     config_path: String,
     /// Path to the configuration file.
+    #[serde(default)]
     config_file_path: String,
     /// Path to the system cache directory.
+    #[serde(default)]
     cache_path: String,
 }
 
@@ -39,6 +52,7 @@ pub struct Config {
 
 impl Config {
     pub fn new() -> Result<Config, String> {
+        // Find a configuration path specified on the command line.
         let home_dir = match env::var("HOME") {
             Ok(v) => format!("{}", v),
             Err(e) => {
@@ -76,18 +90,57 @@ impl Config {
 
     pub fn init() -> Result<Config, String> {
         let mut config = Self::new()?;
-        config.parse_cmd_args()?;
+        let args: Vec<String> = env::args().collect();
+        // Look for custom config file location first. Read it, then override with cmd args.
+        let cmd_config_file = config.find_cmd_config_path(&args)?;
+
+        config.config_file_path = match cmd_config_file {
+            None => config.config_file_path,
+            Some(s) => s.to_string(),
+        };
+
+        config.parse_cmd_args(&args)?;
         config.read_config_file()?;
         Ok(config)
     }
 
     fn read_config_file(&mut self) -> Result<(), String> {
+        // Keep the data we want to survive the assignment.
+        let config_file_path = self.config_file_path.clone();
+        let config_path = self.config_path.clone();
+        let cache_path = self.cache_path.clone();
+        *self = match toml::from_str(&match fs::read_to_string(Path::new(&config_file_path)) {
+            Err(e) => return Err(format!("{}", e)),
+            Ok(r) => r,
+        }) {
+            Err(e) => return Err(format!("{}", e)),
+            Ok(r) => r,
+        };
+
+        self.config_file_path = config_file_path;
+        self.config_path = config_path;
+        if self.cache_path.is_empty() {
+            self.cache_path = cache_path;
+        }
+
         Ok(())
     }
 
-    fn parse_cmd_args(&mut self) -> Result<(), String> {
-        let args: Vec<String> = env::args().collect();
+    fn find_cmd_config_path(&self, args: &Vec<String>) -> Result<Option<String>, String> {
+        for (i, arg) in args.iter().enumerate() {
+            match arg.as_str() {
+                "--config_file_path" => {
+                    return Ok(Some(
+                        args_get_next_arg(&args, i, &format!("config_path"))?.clone(),
+                    ))
+                }
+                _ => (),
+            }
+        }
+        Ok(None)
+    }
 
+    fn parse_cmd_args(&mut self, args: &Vec<String>) -> Result<(), String> {
         let mut skips = 1i32;
         for (i, arg) in args.iter().enumerate() {
             if skips > 0 {
@@ -104,16 +157,27 @@ impl Config {
                     self.ncpu = args_get_next_uint(&args, i, &format!("ncpu"))?;
                     skips += 1;
                 }
-                "--config" => {
-                    self.config_path = args_get_next_arg(&args, i, &format!("config"))?.clone();
+                "--config_path" => {
+                    self.config_path =
+                        args_get_next_arg(&args, i, &format!("config_path"))?.clone();
+                    skips += 1;
+                }
+                "--cache_path" => {
+                    self.config_path = args_get_next_arg(&args, i, &format!("cache_path"))?.clone();
+                    skips += 1;
+                }
+                "--config_file_path" => {
+                    args_get_next_arg(&args, i, &format!("config_path"))?;
                     skips += 1;
                 }
                 _ => {
                     println!(
                         "Usage: riscii [OPTIONS]
---config    Path to configuration file (default=~/.config/riscii/self.toml)
---mem       Size of memory (in megabytes) (default=512)
---ncpu      Number of cores to emulate (default=1)
+--config_path       Path to configuration file (default=~/.config/riscii/)
+--cache_path        Path to the cache directory (default=~/.cache/riscii/)
+--config_file_path  Path to the configuration file (default=~/.config/riscii/config.toml)
+--mem               Size of memory (in megabytes) (default=512)
+--ncpu              Number of cores to emulate (default=1)
 "
                     );
                     return Err(format!("Invalid command line argument: {}", arg));
