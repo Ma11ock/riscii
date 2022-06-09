@@ -37,9 +37,6 @@ pub struct Config {
     /// Number of CPUs the system will have.
     #[serde(default)]
     ncpu: u32,
-    /// Path to the configuration directory.
-    #[serde(default)]
-    config_path: String,
     /// Path to the configuration file.
     #[serde(default)]
     config_file_path: String,
@@ -84,7 +81,6 @@ impl Config {
                 Ok(v) => concat_paths(&v, &cache_dir)?,
                 Err(v) => concat_paths(&home_dir, &cache_dir)?,
             },
-            config_path: config_path,
         })
     }
 
@@ -107,7 +103,6 @@ impl Config {
     fn read_config_file(&mut self) -> Result<(), String> {
         // Keep the data we want to survive the assignment.
         let config_file_path = self.config_file_path.clone();
-        let config_path = self.config_path.clone();
         let cache_path = self.cache_path.clone();
         *self = match toml::from_str(&match fs::read_to_string(Path::new(&config_file_path)) {
             Err(e) => return Err(format!("{}", e)),
@@ -118,7 +113,6 @@ impl Config {
         };
 
         self.config_file_path = config_file_path;
-        self.config_path = config_path;
         if self.cache_path.is_empty() {
             self.cache_path = cache_path;
         }
@@ -157,13 +151,8 @@ impl Config {
                     self.ncpu = args_get_next_uint(&args, i, &format!("ncpu"))?;
                     skips += 1;
                 }
-                "--config_path" => {
-                    self.config_path =
-                        args_get_next_arg(&args, i, &format!("config_path"))?.clone();
-                    skips += 1;
-                }
                 "--cache_path" => {
-                    self.config_path = args_get_next_arg(&args, i, &format!("cache_path"))?.clone();
+                    self.cache_path = args_get_next_arg(&args, i, &format!("cache_path"))?.clone();
                     skips += 1;
                 }
                 "--config_file_path" => {
@@ -174,7 +163,6 @@ impl Config {
                     println!(
                         "Usage: riscii [OPTIONS]
 --config_path       Path to configuration file (default=~/.config/riscii/)
---cache_path        Path to the cache directory (default=~/.cache/riscii/)
 --config_file_path  Path to the configuration file (default=~/.config/riscii/config.toml)
 --mem               Size of memory (in megabytes) (default=512)
 --ncpu              Number of cores to emulate (default=1)
@@ -231,10 +219,9 @@ impl fmt::Display for Config {
             f,
             "Number of cpus: {}
 Memory (MB): {}
-Configuration directory: {}
 Configuration file: {}
 Cache Directory: {}",
-            self.ncpu, self.mem, self.config_path, self.config_file_path, self.cache_path
+            self.ncpu, self.mem, self.config_file_path, self.cache_path
         )
     }
 }
