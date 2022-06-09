@@ -12,12 +12,14 @@
 
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+extern crate core;
+extern crate sdl2;
 #[cfg(test)]
 mod main_test;
 
-extern crate core;
-
 mod config;
+mod sdl;
 
 use core::convert::TryInto;
 use std::fs;
@@ -390,6 +392,7 @@ fn decode_file(file: &Vec<u8>, pos: usize) -> Result<(), DecodeError> {
 }
 
 fn main() -> Result<(), String> {
+    let context = sdl::Context::new()?;
     let config = config::Config::init()?;
 
     println!(
