@@ -104,11 +104,17 @@ impl Config {
         // Keep the data we want to survive the assignment.
         let config_file_path = self.config_file_path.clone();
         let cache_path = self.cache_path.clone();
+        // TODO get ~ in paths to expand
         *self = match toml::from_str(&match fs::read_to_string(Path::new(&config_file_path)) {
-            Err(e) => return Err(format!("{}", e)),
+            Err(e) => return Err(format!("Could not read {}, {}", config_file_path, e)),
             Ok(r) => r,
         }) {
-            Err(e) => return Err(format!("{}", e)),
+            Err(e) => {
+                return Err(format!(
+                    "Could not parse config file {}, {}",
+                    config_file_path, e
+                ))
+            }
             Ok(r) => r,
         };
 
