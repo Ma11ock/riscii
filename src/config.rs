@@ -20,7 +20,6 @@ extern crate serde_derive;
 extern crate toml;
 
 use std::env;
-use std::ffi::OsString;
 use std::fmt;
 use std::fs;
 use std::path::Path;
@@ -33,44 +32,36 @@ use self::serde_derive::{Deserialize, Serialize};
 #[derive(Deserialize)]
 pub struct Config {
     /// Amount of memory the system will have.
-    #[serde(default)]
+    #[serde(default = "default_mem")]
     mem: u32,
     /// Number of CPUs the system will have.
-    #[serde(default)]
+    #[serde(default = "default_ncpu")]
     ncpu: u32,
     /// Path to the configuration file.
-    #[serde(default)]
+    #[serde(skip_deserializing)]
     config_file_path: String,
     /// Path to the system cache directory.
-    #[serde(default)]
+    #[serde(default = "default_cache")]
     cache_path: String,
+    /// Width of the window.
+    #[serde(default = "default_width")]
+    win_width: u32,
+    /// Height of the window.
+    #[serde(default = "default_height")]
+    win_height: u32,
 }
 
 // Struct impls.
 
 impl Config {
     pub fn new() -> Result<Config, String> {
+        let home_dir = util::get_home_nofail();
         // Find a configuration path specified on the command line.
-        let home_dir = match env::var("HOME") {
-            Ok(v) => format!("{}", v),
-            Err(e) => {
-                eprintln!("$HOME is not set. Defaulting to current directory.");
-                format!(
-                    "{}",
-                    match env::current_dir() {
-                        Ok(r) => os_string_result_to_strings(r.into_os_string().into_string())?,
-                        Err(e) => format!("{}", e),
-                    }
-                )
-            }
-        };
-
         let config_path = match env::var("XDG_CONFIG_HOME") {
             Ok(v) => format!("{}", v),
             Err(e) => format!("{}", home_dir),
         };
 
-        let cache_dir = ".cache/riscii".to_string();
         Ok(Config {
             mem: 0,
             ncpu: 0,
@@ -78,10 +69,9 @@ impl Config {
                 &config_path,
                 &".config/riscii/config.toml".to_string(),
             )?,
-            cache_path: match env::var("XDG_CACHE_HOME") {
-                Ok(v) => concat_paths(&v, &cache_dir)?,
-                Err(v) => concat_paths(&home_dir, &cache_dir)?,
-            },
+            cache_path: String::new(),
+            win_width: 0,
+            win_height: 0,
         })
     }
 
@@ -96,16 +86,16 @@ impl Config {
             Some(s) => s.to_string(),
         };
 
-        config.parse_cmd_args(&args)?;
         config.read_config_file()?;
+        config.parse_cmd_args(&args)?;
         Ok(config)
     }
 
     fn read_config_file(&mut self) -> Result<(), String> {
+        // TODO do not exit if config.toml does not exist
+        // TODO get ~ in paths to expand
         // Keep the data we want to survive the assignment.
         let config_file_path = self.config_file_path.clone();
-        let cache_path = self.cache_path.clone();
-        // TODO get ~ in paths to expand
         *self = match toml::from_str(&match fs::read_to_string(Path::new(&config_file_path)) {
             Err(e) => return Err(format!("Could not read {}, {}", config_file_path, e)),
             Ok(r) => r,
@@ -120,9 +110,6 @@ impl Config {
         };
 
         self.config_file_path = config_file_path;
-        if self.cache_path.is_empty() {
-            self.cache_path = cache_path;
-        }
 
         Ok(())
     }
@@ -130,7 +117,7 @@ impl Config {
     fn find_cmd_config_path(&self, args: &Vec<String>) -> Result<Option<String>, String> {
         for (i, arg) in args.iter().enumerate() {
             match arg.as_str() {
-                "--config_file_path" => {
+                "--config_path" => {
                     return Ok(Some(
                         args_get_next_arg(&args, i, &format!("config_path"))?.clone(),
                     ))
@@ -162,8 +149,16 @@ impl Config {
                     self.cache_path = args_get_next_arg(&args, i, &format!("cache_path"))?.clone();
                     skips += 1;
                 }
-                "--config_file_path" => {
+                "--config_path" => {
                     args_get_next_arg(&args, i, &format!("config_path"))?;
+                    skips += 1;
+                }
+                "--win_width" => {
+                    self.win_width = args_get_next_uint(&args, i, &format!("win_width"))?;
+                    skips += 1;
+                }
+                "--win_height" => {
+                    self.win_height = args_get_next_uint(&args, i, &format!("win_height"))?;
                     skips += 1;
                 }
                 _ => {
@@ -180,6 +175,14 @@ impl Config {
             }
         }
         Ok(())
+    }
+
+    pub fn get_win_width(&self) -> u32 {
+        self.win_width
+    }
+
+    pub fn get_win_height(&self) -> u32 {
+        self.win_height
     }
 }
 
@@ -227,20 +230,44 @@ impl fmt::Display for Config {
             "Number of cpus: {}
 Memory (MB): {}
 Configuration file: {}
-Cache Directory: {}",
-            self.ncpu, self.mem, self.config_file_path, self.cache_path
+Cache Directory: {}
+Window dimensions: ({}, {})",
+            self.ncpu,
+            self.mem,
+            self.config_file_path,
+            self.cache_path,
+            self.win_width,
+            self.win_height
         )
     }
 }
 
 // Local functions.
 
-fn os_string_result_to_strings(r: Result<String, OsString>) -> Result<String, String> {
-    match r {
-        Err(e) => Err(match e.into_string() {
-            Ok(s) => s,
-            Err(ee) => "Could not coerce OS string into utf8 string".to_string(),
-        }),
-        Ok(rr) => Ok(rr.to_string()),
+// Default functions for serde.
+
+fn default_mem() -> u32 {
+    64
+}
+
+fn default_ncpu() -> u32 {
+    1
+}
+
+fn default_cache() -> String {
+    let home_dir = util::get_home_nofail();
+
+    let cache_dir = ".cache/riscii".to_string();
+    match env::var("XDG_CACHE_HOME") {
+        Ok(v) => concat_paths(&v, &cache_dir).unwrap(),
+        Err(v) => concat_paths(&home_dir, &cache_dir).unwrap(),
     }
+}
+
+fn default_width() -> u32 {
+    1200
+}
+
+fn default_height() -> u32 {
+    900
 }

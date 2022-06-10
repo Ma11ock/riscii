@@ -13,6 +13,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::env;
+use std::ffi::OsString;
 use std::fs;
 use std::fs::{Metadata, OpenOptions};
 use std::io::{Read, Write};
@@ -44,6 +46,38 @@ pub fn get_unix_timestamp() -> Result<Duration, String> {
     match SystemTime::now().duration_since(UNIX_EPOCH) {
         Ok(r) => Ok(r),
         Err(e) => Err(format!("Could not format unix timestamp: {}", e)),
+    }
+}
+
+pub fn os_string_result_to_strings(r: Result<String, OsString>) -> Result<String, String> {
+    match r {
+        Err(e) => Err(match e.into_string() {
+            Ok(s) => s,
+            Err(ee) => "Could not coerce OS string into utf8 string".to_string(),
+        }),
+        Ok(rr) => Ok(rr.to_string()),
+    }
+}
+
+pub fn get_home_nofail() -> String {
+    match env::var("HOME") {
+        Ok(v) => format!("{}", v),
+        Err(e) => {
+            eprintln!("$HOME is not set. Defaulting to current directory.");
+            format!(
+                "{}",
+                match env::current_dir() {
+                    Ok(r) => match os_string_result_to_strings(r.into_os_string().into_string()) {
+                        Ok(rr) => rr,
+                        Err(ee) => {
+                            eprintln!("Could not get current dir as utf8 string. Defaulting to nothing for $HOME: {}", e);
+                            String::new()
+                        }
+                    },
+                    Err(e) => format!("{}", e),
+                }
+            )
+        }
     }
 }
 

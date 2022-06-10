@@ -17,6 +17,7 @@
 
 extern crate sdl2;
 
+use config::Config;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
@@ -39,11 +40,11 @@ pub struct Context {
 // Struct impls.
 
 impl Context {
-    pub fn new() -> Result<Self, String> {
+    pub fn new(config: &Config) -> Result<Self, String> {
         let sdl_context = sdl2::init()?;
         let video_subsystem = sdl_context.video()?;
         let window = video_subsystem
-            .window("RISC II", 1200, 900)
+            .window("RISC II", config.get_win_width(), config.get_win_height())
             .position_centered()
             .opengl()
             .build()
