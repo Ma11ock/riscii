@@ -12,6 +12,7 @@
 
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+use std::convert::TryInto;
 
 /// The number of register window_regs the RISCII supports.
 pub const NUM_WINDOW_REGS: usize = 6;
@@ -36,10 +37,11 @@ pub const SIZEOF_STATE: usize = TOTAL_NUM_REGISTERS * 4;
 // Struct definitions.
 
 /// A RISC II 32bit register.
-struct Register(u32);
+type Register = u32;
 
 /// The CPU's register state.
-struct State {
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct State {
     /// Current window pointer, index of the currently active window.
     cwp: Register,
     /// Saved window pointer, the index of the youngest window saved in memory.
@@ -80,7 +82,7 @@ impl State {
             swp: u32::from_be_bytes(buf[4..8].try_into().unwrap()),
             globals: {
                 let mut result = [0u32; NUM_GLOBALS];
-                for _ in NUM_GLOBALS {
+                for i in 0..result.len() {
                     result[i] =
                         u32::from_be_bytes(buf[cur_offset..cur_offset + 4].try_into().unwrap());
                     cur_offset += 4;
@@ -89,7 +91,7 @@ impl State {
             },
             window_regs: {
                 let mut result = [0u32; NUM_WINDOW_REGISTERS];
-                for _ in NUM_WINDOW_REGISTERS {
+                for i in 0..result.len() {
                     result[i] =
                         u32::from_be_bytes(buf[cur_offset..cur_offset + 4].try_into().unwrap());
                     cur_offset += 4;
@@ -99,37 +101,33 @@ impl State {
         }
     }
 
-    fn to_buf(&self) -> [u8; SIZEOF_STATE] {
-        let mut result: [u8; SIZEOF_STATE] = [
-            self.cwp.to_be_bytes(),
-            self.swp.to_be_bytes(),
-            {
-                let mut tmp = [u8; NUM_GLOBALS * 4];
-                for i in NUM_GLOBALS {
-                    let bytes = self.globals[i].to_be_bytes();
-                    tmp[i] = bytes[0];
-                    tmp[i + 1] = bytes[1];
-                    tmp[i + 1] = bytes[2];
-                    tmp[i + 1] = bytes[3];
-                }
-                tmp
-            },
-            {
-                let mut tmp = [u8; NUM_WINDOW_REGISTERS * 4];
-                for i in NUM_WINDOW_REGISTERS {
-                    let bytes = self.window_regs[i].to_be_bytes();
-                    tmp[i] = bytes[0];
-                    tmp[i + 1] = bytes[1];
-                    tmp[i + 1] = bytes[2];
-                    tmp[i + 1] = bytes[3];
-                }
-                tmp
-            },
-        ];
+    pub fn to_buf(&self) -> [u8; SIZEOF_STATE] {
+        let mut result = [0u8; SIZEOF_STATE];
+        result[0..4].copy_from_slice(&self.cwp.to_be_bytes());
+        result[4..8].copy_from_slice(&self.swp.to_be_bytes());
+        let globals = {
+            let mut tmp = [0u8; NUM_GLOBALS * 4];
+            for i in 0..NUM_GLOBALS {
+                tmp[i * 4..i * 4 + 4].copy_from_slice(&self.globals[i].to_be_bytes());
+            }
+            tmp
+        };
+
+        const GLOBAL_OFFSET: usize = 8 + NUM_GLOBALS * 4;
+        result[8..GLOBAL_OFFSET].copy_from_slice(&globals);
+        let win_regs = {
+            let mut tmp = [0u8; NUM_WINDOW_REGISTERS * 4];
+            for i in 0..NUM_WINDOW_REGISTERS {
+                tmp[i * 4..i * 4 + 4].copy_from_slice(&self.window_regs[i].to_be_bytes());
+            }
+            tmp
+        };
+
+        result[GLOBAL_OFFSET..].copy_from_slice(&win_regs);
         result
     }
 
-    fn push_reg_window(&mut self) {
+    pub fn push_reg_window(&mut self) {
         self.cwp += 1;
         while self.cwp >= self.swp {
             // TODO save the top window_regs into memory.
@@ -137,7 +135,7 @@ impl State {
         }
     }
 
-    fn pop_reg_window(&mut self) {
+    pub fn pop_reg_window(&mut self) {
         self.cwp -= 1;
         while self.swp >= self.cwp {
             // TODO load window_regs from memory.

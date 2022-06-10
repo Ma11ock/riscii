@@ -17,8 +17,10 @@
 
 use util::File;
 
+use config::Config;
+
 /// The real memory of the RISC II emulator.
-struct Memory(Vec<u8>);
+pub struct Memory(Vec<u8>);
 
 // Struct impls.
 
@@ -29,15 +31,15 @@ impl Memory {
     /// the memory object.
     pub fn new(config: &Config) -> Self {
         Self {
-            0: vec![0u8; config.mem],
+            0: vec![0u8; config.get_mem_size() as usize],
         }
     }
 
-    pub fn from_vec(memory: &Vec<u8>) {
-        Self { 0: memory }
+    pub fn from_vec(memory: &Vec<u8>) -> Self {
+        Self { 0: memory.clone() }
     }
 
-    fn write_to_file(&mut self, file: &mut File) -> Result<(), String> {
+    pub fn write_to_file(&mut self, file: &mut File) -> Result<(), String> {
         file.write_vec(&self.0)?;
         Ok(())
     }

@@ -20,11 +20,24 @@ mod main_test;
 
 mod config;
 mod decode;
+mod memory;
+mod register;
 mod sdl;
 mod util;
 
 use decode::decode_file;
 use std::fs;
+
+use config::Config;
+use memory::Memory;
+use register::State;
+
+// Struct/enum declarations.
+
+struct System {
+    regs: register::State,
+    mem: memory::Memory,
+}
 
 fn get_program(path: &String) -> Result<Vec<u8>, String> {
     println!("Opening binary file {}.", path);
@@ -36,9 +49,10 @@ fn get_program(path: &String) -> Result<Vec<u8>, String> {
 }
 
 fn main() -> Result<(), String> {
-    let config = config::Config::init()?;
+    let config = Config::init()?;
     let context = sdl::Context::new(&config)?;
 
+    let system = System::new(&config);
     println!(
         "Running emulator with the following configuration: \n{}\n",
         config
@@ -46,4 +60,15 @@ fn main() -> Result<(), String> {
     //let program = get_program(&String::from("test.bin"))?;
 
     Ok(())
+}
+
+// Impls.
+
+impl System {
+    pub fn new(config: &Config) -> Result<Self, String> {
+        Ok(Self {
+            regs: State::new(),
+            mem: Memory::new(config),
+        })
+    }
 }

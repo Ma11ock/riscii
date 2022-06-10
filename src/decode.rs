@@ -215,6 +215,7 @@ pub enum Instruction {
     Strb(bool, u8, u32),
 }
 
+/// Opcode errors.
 pub enum DecodeError {
     /// Indicates an invalid instruction. The first u32 indicates which bits are invalid,
     /// the final u32 is the whole opcode.
@@ -249,6 +250,8 @@ fn get_cond_from_opcode(opcode: u32) -> Result<Conditional, DecodeError> {
         _ => return Err(DecodeError::InvalidJumpCondition),
     })
 }
+
+// Public function declarations.
 
 pub fn decode(opcode: u32) -> Result<Instruction, DecodeError> {
     type I = Instruction;

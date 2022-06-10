@@ -104,14 +104,14 @@ impl File {
         }
     }
 
-    fn read_into_vec(&mut self, buf: &mut Vec<u8>) -> Result<(), String> {
+    pub fn read_into_vec(&mut self, buf: &mut Vec<u8>) -> Result<(), String> {
         match self.file.read_exact(&mut buf[..]) {
             Ok(r) => Ok(()),
             Err(e) => Err(format!("Failed to read file {}, {}", self.path, e)),
         }
     }
 
-    fn read_file(&mut self) -> Result<Vec<u8>, String> {
+    pub fn read_file(&mut self) -> Result<Vec<u8>, String> {
         let metadata = self.get_metadata()?;
         let mut result = vec![0u8; metadata.len() as usize];
         self.read_into_vec(&mut result)?;
@@ -119,21 +119,21 @@ impl File {
         Ok(result)
     }
 
-    fn get_metadata(&mut self) -> Result<Metadata, String> {
+    pub fn get_metadata(&mut self) -> Result<Metadata, String> {
         match self.file.metadata() {
             Ok(r) => Ok(r),
             Err(e) => Err(format!("Could not read metadata for {}: {}", self.path, e)),
         }
     }
 
-    fn read(&mut self, buf: &mut [u8]) -> Result<(), String> {
+    pub fn read(&mut self, buf: &mut [u8]) -> Result<(), String> {
         match self.file.read_exact(buf) {
             Ok(r) => Ok(()),
             Err(e) => Err(format!("Could not read buffer from {}: {}", self.path, e)),
         }
     }
 
-    fn write_buf(&mut self, buf: &[u8]) -> Result<(), String> {
+    pub fn write_buf(&mut self, buf: &[u8]) -> Result<(), String> {
         match self.file.write_all(buf) {
             Ok(r) => Ok(()),
             Err(e) => Err(format!(
@@ -143,7 +143,7 @@ impl File {
         }
     }
 
-    fn write_vec(&mut self, buf: &Vec<u8>) -> Result<(), String> {
+    pub fn write_vec(&mut self, buf: &Vec<u8>) -> Result<(), String> {
         match self.file.write_all(&buf[..]) {
             Ok(r) => Ok(()),
             Err(e) => Err(format!(

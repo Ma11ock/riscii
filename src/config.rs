@@ -149,6 +149,7 @@ impl Config {
                     self.cache_path = args_get_next_arg(&args, i, &format!("cache_path"))?.clone();
                     skips += 1;
                 }
+                // Skip this argument since it is special.
                 "--config_path" => {
                     args_get_next_arg(&args, i, &format!("config_path"))?;
                     skips += 1;
@@ -177,12 +178,18 @@ impl Config {
         Ok(())
     }
 
+    // Getters.
+
     pub fn get_win_width(&self) -> u32 {
         self.win_width
     }
 
     pub fn get_win_height(&self) -> u32 {
         self.win_height
+    }
+
+    pub fn get_mem_size(&self) -> u32 {
+        self.mem
     }
 }
 
