@@ -20,11 +20,12 @@ extern crate serde_derive;
 extern crate toml;
 
 use std::env;
-use std::env::JoinPathsError;
 use std::ffi::OsString;
 use std::fmt;
 use std::fs;
 use std::path::Path;
+use util;
+use util::concat_paths;
 
 use self::serde_derive::{Deserialize, Serialize};
 
@@ -241,13 +242,5 @@ fn os_string_result_to_strings(r: Result<String, OsString>) -> Result<String, St
             Err(ee) => "Could not coerce OS string into utf8 string".to_string(),
         }),
         Ok(rr) => Ok(rr.to_string()),
-    }
-}
-
-fn concat_paths(base: &String, rest: &String) -> Result<String, String> {
-    let p = Path::new(&base).join(&rest);
-    match p.to_str() {
-        None => Err(format!("{} and {} joined is not valid utf8", base, rest)),
-        Some(s) => Ok(s.to_string()),
     }
 }

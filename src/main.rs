@@ -20,6 +20,7 @@ mod main_test;
 
 mod config;
 mod sdl;
+mod util;
 
 use core::convert::TryInto;
 use std::fs;
