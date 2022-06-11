@@ -27,8 +27,8 @@ mod test {
     #[test]
     fn decode_calli() -> Result<(), DecodeError> {
         assert_eq!(
-            decode(0x02D00000)?,
-            I::Calli(ShortInstruction::new(true, 5, 0, SS::Reg(0)))
+            decode(0x0329f00f)?,
+            I::Calli(ShortInstruction::new(true, 5, 7, SS::UImm13(4111)))
         );
         Ok(())
     }

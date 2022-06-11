@@ -293,9 +293,9 @@ pub fn decode(opcode: u32) -> Result<Instruction, DecodeError> {
     // SCC flag (<24>).
     let scc = opcode & 0x1000000 != 0;
     // Destination bits (<23-19>).
-    let dest = ((opcode & 0xF80000) >> 18) as u8;
+    let dest = ((opcode & 0x00F80000) >> 19) as u8;
     // Short-immediate RS1 value (<18-14>).
-    let rs1 = ((opcode & 0x7C000) >> 13) as u8;
+    let rs1 = ((opcode & 0x7c000) >> 14) as u8;
     // Immediate-mode bottom 19 bits <18-0>.
     let imm19 = opcode & 0x7FFFF;
     // Short source immediate-mode bottom 13 bits <12-0> or rs1 <4-0>.
