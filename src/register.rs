@@ -1,5 +1,5 @@
-/// RISC II register system.
-/// (C) Ryan Jeffrey <ryan@ryanmj.xyz>, 2022
+// RISC II register system.
+// (C) Ryan Jeffrey <ryan@ryanmj.xyz>, 2022
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or (at
@@ -15,7 +15,7 @@
 use std::convert::TryInto;
 
 /// The number of register window_regs the RISCII supports.
-pub const NUM_WINDOW_REGS: usize = 6;
+pub const NUM_WINDOW_REGS: usize = 8;
 /// The number of local registers per window.
 pub const NUM_LOCALS: usize = 10;
 /// The number of registers shared with the previous register window (input arguments).

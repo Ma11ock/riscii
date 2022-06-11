@@ -17,6 +17,8 @@ extern crate core;
 extern crate sdl2;
 #[cfg(test)]
 mod main_test;
+#[cfg(test)]
+mod decode_test;
 
 mod config;
 mod decode;

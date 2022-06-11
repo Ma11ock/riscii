@@ -15,8 +15,10 @@
 extern crate core;
 
 use core::convert::TryInto;
+use std::fmt;
 
 /// Types of conditionals the RISC II supports.
+#[derive(PartialEq, Eq, Copy, Clone)]
 pub enum Conditional {
     /// Greater than.
     Gt,
@@ -42,7 +44,7 @@ pub enum Conditional {
     Ne,
     /// Equal.
     Eq,
-    /// Now overflow (signed arithmetic).
+    /// No overflow (signed arithmetic).
     Nv,
     /// Overflow (signed arithmetic).
     V,
@@ -52,6 +54,7 @@ pub enum Conditional {
 
 /// The 'source' of the instruction, which can either be a register name,
 /// or a 13 bit immediate (signed or unsigned).
+#[derive(PartialEq, Eq, Copy, Clone)]
 pub enum ShortSource {
     /// Register name.
     Reg(u8),
@@ -59,6 +62,36 @@ pub enum ShortSource {
     UImm13(u32),
     /// Signed 13 bit immediate, Sign-extended to 32 bits.
     SImm13(i32),
+}
+
+#[derive(PartialEq, Eq, Copy, Clone)]
+pub struct ShortInstruction {
+    scc: bool,
+    dest: u8,
+    rs1: u8,
+    short_source: ShortSource,
+}
+
+#[derive(PartialEq, Eq, Copy, Clone)]
+pub struct LongInstruction {
+    scc: bool,
+    dest: u8,
+    imm19: u32,
+}
+
+#[derive(PartialEq, Eq, Copy, Clone)]
+pub struct ShortConditional {
+    scc: bool,
+    dest: Conditional,
+    rs1: u8,
+    short_source: ShortSource,
+}
+
+#[derive(PartialEq, Eq, Copy, Clone)]
+pub struct LongConditional {
+    scc: bool,
+    dest: Conditional,
+    imm19: u32,
 }
 
 /// A RISC-II Instruction.
@@ -80,6 +113,7 @@ pub enum ShortSource {
 /// Load instructions: If the instruction has the letter `r` in the name
 /// it is relative to PC (PC + imm19). If it has the letter `x` instead,
 /// the load is register indexed.
+#[derive(PartialEq, Eq, Copy, Clone)]
 pub enum Instruction {
     /// Call interrupt.
     /// Notes:
@@ -90,14 +124,14 @@ pub enum Instruction {
     /// - If the change to `CWP` makes it equal to `SWP`: stop execution,
     /// generate a trap, and go to address 0x80000020.
     /// CWP := CWP - 1 MOD 8, rd := LSTPC; CC's have same rules as getipc.
-    Calli(bool, u8),
+    Calli(ShortInstruction),
     /// Get pointer to window. rd := (-1)<31:13> & PSW<12:0>;
-    GetPSW(bool, u8, u8, ShortSource),
+    GetPSW(ShortInstruction),
     /// Get the last Program Counter. rd := LSTPC.
     /// Iff SCC == true, Z := [LSTPC == 0]; N := LSTPC<31>; V,C := garbage.
     /// Notes:
     /// - PRIVILEGED INSTRUCTION.
-    GetIPC(bool, u8, u8, ShortSource),
+    GetIPC(ShortInstruction),
     /// Set PSW. PSW := [rs1 + ShortSource2]<12:0>;
     /// Notes:
     /// - PRIVILEGED INSTRUCTION.
@@ -107,7 +141,7 @@ pub enum Instruction {
     /// - Rd is discarded.
     /// - New PSW is not in effect until AFTER the next cycle following execution
     /// of this instruction.
-    PutPSW(bool, u8, u8, ShortSource),
+    PutPSW(ShortInstruction),
     /// Call procedure at `shortSource` + `rs1`.
     /// - The `RS1` and `RS1` registers are read from the OLD window.
     /// - The PC instruction saved is the `PC` at the `CALLI`.
@@ -115,7 +149,7 @@ pub enum Instruction {
     /// - If the change to `CWP` makes it equal to `SWP`: stop execution,
     /// generate a trap, and go to address 0x80000020.
     /// CWP := CWP - 1 MOD 8, rd := PC; CC's have same rules as getipc.
-    Callx(bool, u8, u8, ShortSource),
+    Callx(ShortInstruction),
     /// Call procedure at `PC` + `imm19`.
     /// - The `RS1` and `RS1` registers are read from the OLD window.
     /// - The PC instruction saved is the `PC` at the `CALLI`.
@@ -123,20 +157,20 @@ pub enum Instruction {
     /// - If the change to `CWP` makes it equal to `SWP`: stop execution,
     /// generate a trap, and go to address 0x80000020.
     /// CWP := CWP - 1 MOD 8, rd := PC; CC's have same rules as getipc.
-    Callr(bool, u8, u32),
+    Callr(LongInstruction),
     /// If conditional is true: PC := `rs1` + `shortSource`;
-    Jmpx(bool, Conditional, u8, ShortSource),
+    Jmpx(ShortConditional),
     /// If conditional is true: PC += `imm19`;
     /// Test alignment: if newPC<0> == 1 then abort instruction and jump
     /// to 0x80000000.
-    Jmpr(bool, Conditional, u32),
+    Jmpr(LongConditional),
     /// Return from the current procedure if conditional is true.
     /// CWP := CWP + 1 MOD 8.
     /// Notes:
     /// - `rs1` and `rs1` are read from the OLD window.
     /// - The usual use case of this instruction is with target address
     /// `rs1` + 8 (with `rs1`=`rd` of the call).
-    Ret(bool, Conditional, u8, ShortSource),
+    Ret(ShortConditional),
     /// Return from interrupt if condition is true.
     /// CWP := CWP + 1 MOD 8.
     /// Notes:
@@ -144,78 +178,79 @@ pub enum Instruction {
     /// - `rs1` and `rs1` are read from the OLD window.
     /// - The usual use case of this instruction is with target address
     /// `rs1` + 8 (with `rs1`=`rd` of the call).
-    Reti(bool, Conditional, u8, ShortSource),
+    Reti(ShortConditional),
 
     /// Shift left logical.
-    Sll(bool, u8, u8, ShortSource),
+    Sll(ShortInstruction),
     /// Shift right logical.
-    Srl(bool, u8, u8, ShortSource),
+    Srl(ShortInstruction),
     /// Shift right arithmetic.
-    Sra(bool, u8, u8, ShortSource),
+    Sra(ShortInstruction),
 
     /// Bitwise OR.
-    Or(bool, u8, u8, ShortSource),
+    Or(ShortInstruction),
     /// Bitwise And.
-    And(bool, u8, u8, ShortSource),
+    And(ShortInstruction),
     /// Bitwise Xor.
-    Xor(bool, u8, u8, ShortSource),
+    Xor(ShortInstruction),
 
     /// Arithmetic add: d := s1 + s2;
-    Add(bool, u8, u8, ShortSource),
+    Add(ShortInstruction),
     /// Arithmetic add with constant: d := s1 + s2 + C;
-    Addc(bool, u8, u8, ShortSource),
+    Addc(ShortInstruction),
     /// Arithmetic sub: d := s1 - s2; (d := s1 + NOT(s2) + 1)
-    Sub(bool, u8, u8, ShortSource),
+    Sub(ShortInstruction),
     /// Arithmetic sub with constant: d := s1 - s2 - NOT(C); (d := s1 + NOT(s2) + C)
-    Subc(bool, u8, u8, ShortSource),
+    Subc(ShortInstruction),
     /// Subtract inverse: d := s2 - s1; (d := s2 + NOT(s1))
-    Subi(bool, u8, u8, ShortSource),
+    Subi(ShortInstruction),
     /// Subtract inverse with constant: d := s2 - s1 - NOT(C); (d := s2 - s1 - NOT(C))
-    Subci(bool, u8, u8, ShortSource),
+    Subci(ShortInstruction),
 
     /// Load high: Load 19 bit immediate into top 19 bits of destination register,
     ///  and set the bottom 13 bits to 0.
-    Ldhi(bool, u8, u32),
+    Ldhi(LongInstruction),
     /// Load word, register indexed.
-    Ldxw(bool, u8, u8, ShortSource),
+    Ldxw(ShortInstruction),
     /// Load word, long-immediate.
-    Ldrw(bool, u8, u32),
+    Ldrw(LongInstruction),
 
     /// Load half signed, register indexed.
-    Ldxhs(bool, u8, u8, ShortSource),
+    Ldxhs(ShortInstruction),
     /// Load half signed, long-immediate.
-    Ldrhs(bool, u8, u32),
+    Ldrhs(LongInstruction),
     /// Load half unsigned, register indexed.
-    Ldxhu(bool, u8, u8, ShortSource),
+    Ldxhu(ShortInstruction),
     /// Load half unsigned, long-immediate.
-    Ldrhu(bool, u8, u32),
+    Ldrhu(LongInstruction),
 
     /// Load byte signed, register indexed.
-    Ldxbs(bool, u8, u8, ShortSource),
+    Ldxbs(ShortInstruction),
     /// Load byte signed, long-immediate.
-    Ldrbs(bool, u8, u32),
+    Ldrbs(LongInstruction),
     /// Load byte unsigned, register indexed.
-    Ldxbu(bool, u8, u8, ShortSource),
+    Ldxbu(ShortInstruction),
     /// Load byte unsigned, long-immediate.
-    Ldrbu(bool, u8, u32),
+    Ldrbu(LongInstruction),
 
     /// Store word, register indexed.
-    Stxw(bool, u8, u8, ShortSource),
+    Stxw(ShortInstruction),
     /// Store word, long-immediate.
-    Strw(bool, u8, u32),
+    Strw(LongInstruction),
 
     /// Store half, register indexed.
-    Stxh(bool, u8, u8, ShortSource),
+    Stxh(ShortInstruction),
     /// Store half, long-immediate.
-    Strh(bool, u8, u32),
+    Strh(LongInstruction),
 
     /// Store byte, register indexed.
-    Stxb(bool, u8, u8, ShortSource),
+    Stxb(ShortInstruction),
     /// Store byte, long-immediate.
-    Strb(bool, u8, u32),
+    Strb(LongInstruction),
 }
 
 /// Opcode errors.
+#[derive(PartialEq, Eq, Clone)]
 pub enum DecodeError {
     /// Indicates an invalid instruction. The first u32 indicates which bits are invalid,
     /// the final u32 is the whole opcode.
@@ -270,27 +305,28 @@ pub fn decode(opcode: u32) -> Result<Instruction, DecodeError> {
         ShortSource::Reg((opcode & 0x1f) as u8)
     }; // TODO fix ambiguous sign problem.
        // The opcode itself.
-    let op = (opcode & 0xFE) >> 24;
+    let op = (opcode & 0xFE000000) >> 25;
 
     let cond = get_cond_from_opcode(opcode);
 
-    // Math the opcode's prefix.
+    let bottom_nibble = op & 0xf;
+    // Match the opcode's prefix.
     Ok(match op >> 5 {
         // Match the bottom four bytes of the opcode's prefix.
-        0 => match op & 0xF {
+        0 => match bottom_nibble {
             0 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
-            1 => I::Calli(scc, dest),
-            2 => I::GetPSW(scc, dest, rs1, short_source),
-            3 => I::GetIPC(scc, dest, rs1, short_source),
-            4 => I::PutPSW(scc, dest, rs1, short_source),
+            1 => I::Calli(ShortInstruction::new(scc, dest, rs1, short_source)),
+            2 => I::GetPSW(ShortInstruction::new(scc, dest, rs1, short_source)),
+            3 => I::GetIPC(ShortInstruction::new(scc, dest, rs1, short_source)),
+            4 => I::PutPSW(ShortInstruction::new(scc, dest, rs1, short_source)),
             5..=7 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
-            8 => I::Callx(scc, dest, rs1, short_source),
-            9 => I::Callr(scc, dest, imm19),
+            8 => I::Callx(ShortInstruction::new(scc, dest, rs1, short_source)),
+            9 => I::Callr(LongInstruction::new(scc, dest, imm19)),
             10..=11 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
-            12 => I::Jmpx(scc, cond?, rs1, short_source),
-            13 => I::Jmpr(scc, cond?, imm19),
-            14 => I::Ret(scc, cond?, rs1, short_source),
-            15 => I::Reti(scc, cond?, rs1, short_source),
+            12 => I::Jmpx(ShortConditional::new(scc, cond?, rs1, short_source)),
+            13 => I::Jmpr(LongConditional::new(scc, cond?, imm19)),
+            14 => I::Ret(ShortConditional::new(scc, cond?, rs1, short_source)),
+            15 => I::Reti(ShortConditional::new(scc, cond?, rs1, short_source)),
             // Should never be reached.
             _ => {
                 return Err(DecodeError::CodeError(String::from(
@@ -298,22 +334,22 @@ pub fn decode(opcode: u32) -> Result<Instruction, DecodeError> {
                 )))
             }
         },
-        1 => match op & 0xF {
+        1 => match bottom_nibble {
             0 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
-            1 => I::Sll(scc, dest, rs1, short_source),
-            2 => I::Sra(scc, dest, rs1, short_source),
-            3 => I::Srl(scc, dest, rs1, short_source),
-            4 => I::Ldhi(scc, dest, imm19),
-            5 => I::And(scc, dest, rs1, short_source),
-            6 => I::Or(scc, dest, rs1, short_source),
-            7 => I::Xor(scc, dest, rs1, short_source),
-            8 => I::Add(scc, dest, rs1, short_source),
-            9 => I::Addc(scc, dest, rs1, short_source),
+            1 => I::Sll(ShortInstruction::new(scc, dest, rs1, short_source)),
+            2 => I::Sra(ShortInstruction::new(scc, dest, rs1, short_source)),
+            3 => I::Srl(ShortInstruction::new(scc, dest, rs1, short_source)),
+            4 => I::Ldhi(LongInstruction::new(scc, dest, imm19)),
+            5 => I::And(ShortInstruction::new(scc, dest, rs1, short_source)),
+            6 => I::Or(ShortInstruction::new(scc, dest, rs1, short_source)),
+            7 => I::Xor(ShortInstruction::new(scc, dest, rs1, short_source)),
+            8 => I::Add(ShortInstruction::new(scc, dest, rs1, short_source)),
+            9 => I::Addc(ShortInstruction::new(scc, dest, rs1, short_source)),
             10..=11 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
-            12 => I::Sub(scc, dest, rs1, short_source),
-            13 => I::Subc(scc, dest, rs1, short_source),
-            14 => I::Subi(scc, dest, rs1, short_source),
-            15 => I::Subci(scc, dest, rs1, short_source),
+            12 => I::Sub(ShortInstruction::new(scc, dest, rs1, short_source)),
+            13 => I::Subc(ShortInstruction::new(scc, dest, rs1, short_source)),
+            14 => I::Subi(ShortInstruction::new(scc, dest, rs1, short_source)),
+            15 => I::Subci(ShortInstruction::new(scc, dest, rs1, short_source)),
             // Should never be reached.
             _ => {
                 return Err(DecodeError::CodeError(String::from(
@@ -321,18 +357,18 @@ pub fn decode(opcode: u32) -> Result<Instruction, DecodeError> {
                 )))
             }
         },
-        2 => match op & 0xF {
+        2 => match bottom_nibble {
             0..=5 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
-            6 => I::Ldxw(scc, dest, rs1, short_source),
-            7 => I::Ldrw(scc, dest, imm19),
-            8 => I::Ldxhu(scc, dest, rs1, short_source),
-            9 => I::Ldrhu(scc, dest, imm19),
-            10 => I::Ldxhs(scc, dest, rs1, short_source),
-            11 => I::Ldrhs(scc, dest, imm19),
-            12 => I::Ldxbu(scc, dest, rs1, short_source),
-            13 => I::Ldrbu(scc, dest, imm19),
-            14 => I::Ldxbs(scc, dest, rs1, short_source),
-            15 => I::Ldrbs(scc, dest, imm19),
+            6 => I::Ldxw(ShortInstruction::new(scc, dest, rs1, short_source)),
+            7 => I::Ldrw(LongInstruction::new(scc, dest, imm19)),
+            8 => I::Ldxhu(ShortInstruction::new(scc, dest, rs1, short_source)),
+            9 => I::Ldrhu(LongInstruction::new(scc, dest, imm19)),
+            10 => I::Ldxhs(ShortInstruction::new(scc, dest, rs1, short_source)),
+            11 => I::Ldrhs(LongInstruction::new(scc, dest, imm19)),
+            12 => I::Ldxbu(ShortInstruction::new(scc, dest, rs1, short_source)),
+            13 => I::Ldrbu(LongInstruction::new(scc, dest, imm19)),
+            14 => I::Ldxbs(ShortInstruction::new(scc, dest, rs1, short_source)),
+            15 => I::Ldrbs(LongInstruction::new(scc, dest, imm19)),
             // Should never be reached.
             _ => {
                 return Err(DecodeError::CodeError(String::from(
@@ -340,16 +376,16 @@ pub fn decode(opcode: u32) -> Result<Instruction, DecodeError> {
                 )))
             }
         },
-        3 => match op & 0xF {
+        3 => match bottom_nibble {
             0..=5 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
-            6 => I::Stxw(scc, dest, rs1, short_source),
-            7 => I::Strw(scc, dest, imm19),
+            6 => I::Stxw(ShortInstruction::new(scc, dest, rs1, short_source)),
+            7 => I::Strw(LongInstruction::new(scc, dest, imm19)),
             8..=9 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
-            10 => I::Stxh(scc, dest, rs1, short_source),
-            11 => I::Strh(scc, dest, imm19),
+            10 => I::Stxh(ShortInstruction::new(scc, dest, rs1, short_source)),
+            11 => I::Strh(LongInstruction::new(scc, dest, imm19)),
             12..=13 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
-            14 => I::Stxb(scc, dest, rs1, short_source),
-            15 => I::Strb(scc, dest, imm19),
+            14 => I::Stxb(ShortInstruction::new(scc, dest, rs1, short_source)),
+            15 => I::Strb(LongInstruction::new(scc, dest, imm19)),
             // Should never be reached.
             _ => {
                 return Err(DecodeError::CodeError(String::from(
@@ -374,4 +410,130 @@ pub fn decode_file(file: &Vec<u8>, pos: usize) -> Result<(), DecodeError> {
     }
 
     Ok(())
+}
+
+// Impls.
+
+impl fmt::Display for DecodeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::InvalidInstruction(i, op) => write!(f, "Invalid: 0x{:x}, opcode: 0x{:x}", i, op),
+            Self::InvalidJumpCondition => write!(f, "Invalid jump condition"),
+            Self::CodeError(s) => write!(f, "Error in RISC II emulator: {}", s),
+        }
+    }
+}
+
+impl LongInstruction {
+    pub fn new(scc: bool, dest: u8, imm19: u32) -> Self {
+        Self {
+            scc: scc,
+            dest: dest,
+            imm19: imm19,
+        }
+    }
+}
+
+impl fmt::Display for LongInstruction {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "Scc: {}, dest: {}, imm19: {}",
+            self.scc, self.dest, self.imm19
+        )
+    }
+}
+
+impl LongConditional {
+    pub fn new(scc: bool, dest: Conditional, imm19: u32) -> Self {
+        Self {
+            scc: scc,
+            dest: dest,
+            imm19: imm19,
+        }
+    }
+}
+
+impl fmt::Display for LongConditional {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "Scc: {}, cond: {}, imm19: {}",
+            self.scc, self.dest, self.imm19
+        )
+    }
+}
+
+impl ShortInstruction {
+    pub fn new(scc: bool, dest: u8, rs1: u8, short_source: ShortSource) -> Self {
+        Self {
+            scc: scc,
+            dest: dest,
+            rs1: rs1,
+            short_source: short_source,
+        }
+    }
+}
+
+impl fmt::Display for ShortInstruction {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "Scc: {}, dest: {}, rs1: {}, short_source: {}",
+            self.scc, self.dest, self.rs1, self.short_source
+        )
+    }
+}
+
+impl ShortConditional {
+    pub fn new(scc: bool, dest: Conditional, rs1: u8, short_source: ShortSource) -> Self {
+        Self {
+            scc: scc,
+            dest: dest,
+            rs1: rs1,
+            short_source: short_source,
+        }
+    }
+}
+
+impl fmt::Display for ShortConditional {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "Scc: {}, conditional: {}, rs1: {}, short_source: {}",
+            self.scc, self.dest, self.rs1, self.short_source
+        )
+    }
+}
+
+impl fmt::Display for ShortSource {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Self::Reg(r) => write!(f, "Reg {}", r),
+            Self::UImm13(u) => write!(f, "U{}", u),
+            Self::SImm13(i) => write!(f, "S{}", i),
+        }
+    }
+}
+
+impl fmt::Display for Conditional {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Self::Gt => write!(f, "Greater than"),
+            Self::Le => write!(f, "Less than or equal to"),
+            Self::Ge => write!(f, "Greater than or equal to"),
+            Self::Lt => write!(f, "Less than"),
+            Self::Hi => write!(f, "Higher than"),
+            Self::Los => write!(f, "Lower than or same"),
+            Self::Lonc => write!(f, "Lower than no carry"),
+            Self::Hisc => write!(f, "Higher than no carry"),
+            Self::Pl => write!(f, "Plus"),
+            Self::Mi => write!(f, "Minus"),
+            Self::Ne => write!(f, "Not equal"),
+            Self::Eq => write!(f, "Equal"),
+            Self::Nv => write!(f, "No overflow (signed arithmetic)"),
+            Self::V => write!(f, "Overflow (signed arithmetic)"),
+            Self::Alw => write!(f, "Always (constant 1)"),
+        }
+    }
 }
