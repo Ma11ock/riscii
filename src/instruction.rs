@@ -64,33 +64,51 @@ pub enum ShortSource {
     SImm13(i32),
 }
 
+/// Short instruction format data.
 #[derive(PartialEq, Eq, Copy, Clone)]
 pub struct ShortInstruction {
+    /// Update CC bit.
     scc: bool,
+    /// Destination register.
     dest: u8,
+    /// Source register.
     rs1: u8,
+    /// Short source data.
     short_source: ShortSource,
 }
 
+/// Long instruction format data.
 #[derive(PartialEq, Eq, Copy, Clone)]
 pub struct LongInstruction {
+    /// Update CC bit.
     scc: bool,
+    /// Destination register.
     dest: u8,
+    /// 19 bit constant.
     imm19: u32,
 }
 
+/// Short conditional instruction format data.
 #[derive(PartialEq, Eq, Copy, Clone)]
 pub struct ShortConditional {
+    /// Update CC bit.
     scc: bool,
+    /// Destination register.
     dest: Conditional,
+    /// Source register.
     rs1: u8,
+    /// Short source data.
     short_source: ShortSource,
 }
 
+/// Long conditional instruction format data.
 #[derive(PartialEq, Eq, Copy, Clone)]
 pub struct LongConditional {
+    /// Update CC bit.
     scc: bool,
+    /// Destination register.
     dest: Conditional,
+    /// 19 bit constant.
     imm19: u32,
 }
 
@@ -252,6 +270,11 @@ pub enum Instruction {
 // Impls.
 
 impl ShortSource {
+    /// Create a new short source.
+    /// # Arguments
+    /// * `opcode` - The current opcode being executed.
+    /// * `signed` - True if `self` is a 13 bit constant and signed. This
+    /// is ignored if `self` is not a constant.
     pub fn new(opcode: u32, signed: bool) -> Self {
         // Short source immediate-mode bottom 13 bits <12-0> or rs1 <4-0>.
         if opcode & 0x2000 != 0 {
@@ -266,6 +289,8 @@ impl ShortSource {
         }
     }
 
+    /// Create a new short source. If `self` is an unsigned constant,
+    /// convert it a signed constant. Else, return `self`.
     pub fn uimm_to_simm(&self) -> Self {
         match *self {
             Self::UImm13(u) => {
@@ -303,6 +328,11 @@ impl LowerHex for ShortSource {
 }
 
 impl LongInstruction {
+    /// Create a new long instruction.
+    /// # Arguments
+    /// * `scc` - Should update CC's.
+    /// * `dest` - Destination register.
+    /// * `imm19` - 19 bit constant.
     pub fn new(scc: bool, dest: u8, imm19: u32) -> Self {
         Self {
             scc: scc,
@@ -323,6 +353,11 @@ impl fmt::Display for LongInstruction {
 }
 
 impl LongConditional {
+    /// Create a new long conditional instruction.
+    /// # Arguments
+    /// * `scc` - Should update CC's.
+    /// * `dest` - Conditional.
+    /// * `imm19` - 19 bit constant.
     pub fn new(scc: bool, dest: Conditional, imm19: u32) -> Self {
         Self {
             scc: scc,
@@ -343,6 +378,12 @@ impl fmt::Display for LongConditional {
 }
 
 impl ShortInstruction {
+    /// Create a new long conditional instruction.
+    /// # Arguments
+    /// * `scc` - Should update CC's.
+    /// * `dest` - Destination register.
+    /// * `rs1` - Source register.
+    /// * `short_source` - Short source.
     pub fn new(scc: bool, dest: u8, rs1: u8, short_source: ShortSource) -> Self {
         Self {
             scc: scc,
@@ -364,6 +405,12 @@ impl fmt::Display for ShortInstruction {
 }
 
 impl ShortConditional {
+    /// Create a new long conditional instruction.
+    /// # Arguments
+    /// * `scc` - Should update CC's.
+    /// * `dest` - Conditional.
+    /// * `rs1` - Source register.
+    /// * `short_source` - Short source.
     pub fn new(scc: bool, dest: Conditional, rs1: u8, short_source: ShortSource) -> Self {
         Self {
             scc: scc,

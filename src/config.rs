@@ -54,6 +54,7 @@ pub struct Config {
 // Struct impls.
 
 impl Config {
+    /// Create a new configuration object (with default settings) on success and a string on error.
     pub fn new() -> Result<Config, String> {
         let home_dir = util::get_home_nofail();
         // Find a configuration path specified on the command line.
@@ -75,6 +76,7 @@ impl Config {
         })
     }
 
+    /// Create an initialized configuration object on success and a string on error.
     pub fn init() -> Result<Config, String> {
         let mut config = Self::new()?;
         let args: Vec<String> = env::args().collect();
@@ -91,6 +93,9 @@ impl Config {
         Ok(config)
     }
 
+    /// Read the user's configuration file and update configuration state
+    /// (default ~/.config/riscii/config.toml). Return void on success and a
+    /// string on error.
     fn read_config_file(&mut self) -> Result<(), String> {
         // TODO do not exit if config.toml does not exist
         // TODO get ~ in paths to expand
@@ -114,6 +119,10 @@ impl Config {
         Ok(())
     }
 
+    /// Parse CMD arguments for configuration file path. Return path on
+    /// success and string on error.
+    /// # Arguments
+    /// * `args` - CMD argument vector.
     fn find_cmd_config_path(&self, args: &Vec<String>) -> Result<Option<String>, String> {
         for (i, arg) in args.iter().enumerate() {
             match arg.as_str() {
@@ -128,6 +137,10 @@ impl Config {
         Ok(None)
     }
 
+    /// Parse CMD args and update configuration state. Return void on success
+    /// and a string on error.
+    /// # Arguments
+    /// * `args` - CMD argument vector.
     fn parse_cmd_args(&mut self, args: &Vec<String>) -> Result<(), String> {
         let mut skips = 1i32;
         for (i, arg) in args.iter().enumerate() {
@@ -180,21 +193,35 @@ impl Config {
 
     // Getters.
 
+    /// Get the user's configured window width.
     pub fn get_win_width(&self) -> u32 {
         self.win_width
     }
 
+    /// Get the user's configured window height.
     pub fn get_win_height(&self) -> u32 {
         self.win_height
     }
 
+    /// Get the user's configured memory size.
     pub fn get_mem_size(&self) -> u32 {
         self.mem
+    }
+
+    /// Get the user's configured number of CPUs.
+    pub fn get_ncpus(&self) -> u32 {
+        self.ncpu
     }
 }
 
 // Local functions.
 
+/// Check the argument vector to make sure it has at least one more string
+/// after the current argument. Return void on success and a string on error.
+/// # Arguments
+/// * `args` - CMD argument vector.
+/// * `i` - Index of the current argument.
+/// * `what` - String describing the current argument (for error message).
 fn args_check_size(args: &Vec<String>, i: usize, what: &String) -> Result<(), String> {
     if i >= args.len() {
         Err(format!(
@@ -206,6 +233,12 @@ fn args_check_size(args: &Vec<String>, i: usize, what: &String) -> Result<(), St
     }
 }
 
+/// Get the next argument in the argument vector as a string. Return next
+/// string on success and a string on error.
+/// # Arguments
+/// * `args` - CMD argument vector.
+/// * `i` - Index of the current argument.
+/// * `what` - String describing the current argument (for error message).
 fn args_get_next_arg<'a>(
     args: &'a Vec<String>,
     i: usize,
@@ -215,6 +248,12 @@ fn args_get_next_arg<'a>(
     Ok(&args[i + 1])
 }
 
+/// Get the next argument in the argument vector as a u32. Return
+/// u32 on success and a string on error.
+/// # Arguments
+/// * `args` - CMD argument vector.
+/// * `i` - Index of the current argument.
+/// * `what` - String describing the current argument (for error message).
 fn args_get_next_uint(args: &Vec<String>, i: usize, what: &String) -> Result<u32, String> {
     args_check_size(&args, i, &what)?;
     Ok(match args[i + 1].parse::<u32>() {

@@ -65,15 +65,23 @@ pub struct RegisterFile {
     window_regs: [Register; NUM_WINDOW_REGISTERS], // TODO test, there should be 138 regs.
 }
 
-///
+/// Load/Store queries. Specifies the register and the value to set it to (if store).
 pub enum LoadStore {
-    NXTPC { val: u32 },
-    PC { val: u32 },
-    LSTPC { val: u32 },
-    CWP { val: u32 },
-    SWP { val: u32 },
-    Global { which: u32, val: u32 },
-    Window { which: u32, val: u32 },
+    /// Global register.
+    Global {
+        /// Which global register. g0 is special and will always return 0,
+        /// attempts to store to it are ignored. Values above 10 throw an error.
+        which: u32,
+        /// Value to set register to (ignored owhen loading).
+        val: u32,
+    },
+    /// Window register.
+    Window {
+        /// Which window register. Values above 22 throw an error.
+        which: u32,
+        /// Value to set register to (ignored owhen loading).
+        val: u32,
+    },
 }
 
 // Struct implementations.
@@ -91,7 +99,7 @@ impl RegisterFile {
 
     /// Create a register state from a buffer.
     /// # Arguments
-    /// * `buffer` - A byte buffer that is the size of the sum of of register::RegisterFile's
+    /// * `buf` - A byte buffer that is the size of the sum of of register::RegisterFile's
     /// members (in bytes) (see `SIZEOF_STATE`).
     /// The registers should appear in the following order:
     /// - NXTPC
@@ -133,6 +141,7 @@ impl RegisterFile {
         }
     }
 
+    /// Convert self to a byte buffer of all of the register values.
     pub fn to_buf(&self) -> [u8; SIZEOF_STATE] {
         let mut result = [0u8; SIZEOF_STATE];
         result[0..4].copy_from_slice(&self.cwp.to_be_bytes());
@@ -159,6 +168,8 @@ impl RegisterFile {
         result
     }
 
+    /// Push the register window stack. Increment CWP by 1 and flush the bottom
+    /// windows to memory if necessary and change SWP.
     pub fn push_reg_window(&mut self) {
         self.cwp += 1;
         while self.cwp >= self.swp {
@@ -167,6 +178,8 @@ impl RegisterFile {
         }
     }
 
+    /// Pop the register window stack. Decrement CWP by 1 and pull the bottom
+    /// windows from memory if necessary and change SWP.
     pub fn pop_reg_window(&mut self) {
         self.cwp -= 1;
         while self.swp >= self.cwp {
@@ -175,14 +188,13 @@ impl RegisterFile {
         }
     }
 
-    pub fn load(&self, ls: LoadStore) -> Result<u32, String> {
+    /// Load from a register (unsigned). Return the register's value
+    /// on success and a string message on error.
+    /// # Arguments
+    /// * `ls` - Load/Store instruction. Will error if `which` is out of range.
+    pub fn load_u(&self, ls: LoadStore) -> Result<u32, String> {
         type LS = LoadStore;
         Ok(match ls {
-            LS::NXTPC { val: _ } => self.nxtpc,
-            LS::PC { val: _ } => self.pc,
-            LS::LSTPC { val: _ } => self.lstpc,
-            LS::CWP { val: _ } => self.cwp,
-            LS::SWP { val: _ } => self.swp,
             LS::Global { which: rd, val: _ } => {
                 if rd <= NUM_GLOBALS {
                     self.globals[rd]
@@ -204,24 +216,21 @@ impl RegisterFile {
         })
     }
 
+    /// Load from a register (signed). Return the register's value
+    /// on success and a string message on error.
+    /// # Arguments
+    /// * `ls` - Load/Store instruction. `val` is ignored.
+    pub fn load_s(&self, ls: LoadStore) -> Result<i32, String> {
+        self.load_u(ls)? as i32
+    }
+
+    /// Store to a register. Return void on success and a string message on
+    /// failure.
+    /// # Arguments
+    /// * `ls` - Load/Store instruction. Will error if `which` is out of range.
     pub fn store(&mut self, ls: LoadStore) -> Result<(), String> {
         type LS = LoadStore;
         Ok(match ls {
-            LS::NXTPC { val: v } => {
-                self.nxtpc = v;
-            }
-            LS::PC { val: v } => {
-                self.pc = v;
-            }
-            LS::LSTPC { val: v } => {
-                self.lstpc = v;
-            }
-            LS::CWP { val: v } => {
-                self.cwp = v;
-            }
-            LS::SWP { val: v } => {
-                self.swp = v;
-            }
             LS::Global { which: rd, val: v } => {
                 if rd <= NUM_GLOBALS && rd > 0 {
                     self.globals[rd] = val;
