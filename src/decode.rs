@@ -1,4 +1,5 @@
-// RISC-II decoder.
+// RISC-II decoder, the first stage in the pipeline. The next stages are
+// "execute" and then "commit".
 // (C) Ryan Jeffrey <ryan@ryanmj.xyz>, 2022
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -16,40 +17,41 @@ extern crate core;
 
 use core::convert::TryInto;
 use std::fmt;
+use std::fmt::LowerHex;
 
 /// Types of conditionals the RISC II supports.
 #[derive(PartialEq, Eq, Copy, Clone)]
 pub enum Conditional {
-    /// Greater than.
-    Gt,
-    /// Less than or equal to.
-    Le,
-    /// Greater than or equal to.
-    Ge,
-    /// Less than.
-    Lt,
-    /// Higher than.
-    Hi,
-    /// Lower than or same.
-    Los,
-    /// Lower than no carry.
-    Lonc,
-    /// Higher than, carry.
-    Hisc,
+    /// Greater than (signed >).
+    Gt = 1,
+    /// Less than or equal to (signed <=).
+    Le = 2,
+    /// Greater than or equal to (signed >=).
+    Ge = 3,
+    /// Less than (signed <).
+    Lt = 4,
+    /// Higher than (unsigned >).
+    Hi = 5,
+    /// Lower than or same (unsigned <=).
+    Los = 6,
+    /// Lower than no carry (unsigned <).
+    Lonc = 7,
+    /// Higher than, carry (unsigned >=).
+    Hisc = 8,
     /// Plus (test sign).
-    Pl,
+    Pl = 9,
     /// Minus (test sign).
-    Mi,
+    Mi = 10,
     /// Not equal.
-    Ne,
+    Ne = 11,
     /// Equal.
-    Eq,
+    Eq = 12,
     /// No overflow (signed arithmetic).
-    Nv,
+    Nv = 13,
     /// Overflow (signed arithmetic).
-    V,
+    V = 14,
     /// Always (constant 1).
-    Alw,
+    Alw = 15,
 }
 
 /// The 'source' of the instruction, which can either be a register name,
@@ -266,7 +268,7 @@ pub enum DecodeError {
 /// return RISC-II conditional, or DecodeError if 0.
 fn get_cond_from_opcode(opcode: u32) -> Result<Conditional, DecodeError> {
     type C = Conditional;
-    Ok(match (opcode & 0x780000) >> 18 {
+    Ok(match (opcode & 0x780000) >> 19 {
         1 => C::Gt,
         2 => C::Le,
         3 => C::Ge,
@@ -311,7 +313,7 @@ pub fn decode(opcode: u32) -> Result<Instruction, DecodeError> {
 
     let bottom_nibble = op & 0xf;
     // Match the opcode's prefix.
-    Ok(match op >> 5 {
+    Ok(match op >> 4 {
         // Match the bottom four bytes of the opcode's prefix.
         0 => match bottom_nibble {
             0 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
@@ -414,6 +416,57 @@ pub fn decode_file(file: &Vec<u8>, pos: usize) -> Result<(), DecodeError> {
 
 // Impls.
 
+impl ShortSource {
+    pub fn new(opcode: u32, signed: bool) -> Self {
+        // Short source immediate-mode bottom 13 bits <12-0> or rs1 <4-0>.
+        if opcode & 0x2000 != 0 {
+            let mut tmp = Self::UImm13(opcode & 0x1fff);
+            if signed {
+                tmp.uimm_to_simm()
+            } else {
+                tmp
+            }
+        } else {
+            Self::Reg((opcode & 0x1f) as u8)
+        }
+    }
+
+    pub fn uimm_to_simm(&self) -> Self {
+        match *self {
+            Self::UImm13(u) => {
+                if u & 0x1000 != 0 {
+                    // Sign-extend the 13 bit value to 32 bits.
+                    Self::SImm13(-(u as i32))
+                } else {
+                    Self::SImm13(u as i32)
+                }
+            }
+            Self::SImm13(s) => *self,
+            Self::Reg(r) => *self,
+        }
+    }
+}
+
+impl fmt::Display for ShortSource {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Self::Reg(r) => write!(f, "Reg {}", r),
+            Self::UImm13(u) => write!(f, "U{}", u),
+            Self::SImm13(i) => write!(f, "S{}", i),
+        }
+    }
+}
+
+impl LowerHex for ShortSource {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Self::Reg(r) => write!(f, "Register {:x}", r),
+            Self::UImm13(u) => write!(f, "(UImm) {:x}", u),
+            Self::SImm13(i) => write!(f, "(SImm) {:x}", i),
+        }
+    }
+}
+
 impl fmt::Display for DecodeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -438,8 +491,8 @@ impl fmt::Display for LongInstruction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Scc: {}, dest: {}, imm19: {}",
-            self.scc, self.dest, self.imm19
+            "Scc: {}, dest: {}, imm19: 0x{:x} ({})",
+            self.scc, self.dest, self.imm19, self.imm19
         )
     }
 }
@@ -458,8 +511,8 @@ impl fmt::Display for LongConditional {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Scc: {}, cond: {}, imm19: {}",
-            self.scc, self.dest, self.imm19
+            "Scc: {}, cond: {}, imm19: 0x{:x} ({})",
+            self.scc, self.dest, self.imm19, self.imm19
         )
     }
 }
@@ -479,8 +532,8 @@ impl fmt::Display for ShortInstruction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Scc: {}, dest: {}, rs1: {}, short_source: {}",
-            self.scc, self.dest, self.rs1, self.short_source
+            "Scc: {}, dest: {}, rs1: {}, short_source: 0x{:x} ({})",
+            self.scc, self.dest, self.rs1, self.short_source, self.short_source
         )
     }
 }
@@ -500,19 +553,9 @@ impl fmt::Display for ShortConditional {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Scc: {}, conditional: {}, rs1: {}, short_source: {}",
-            self.scc, self.dest, self.rs1, self.short_source
+            "Scc: {}, conditional: {}, rs1: {}, short_source: 0x{:x} {}",
+            self.scc, self.dest, self.rs1, self.short_source, self.short_source
         )
-    }
-}
-
-impl fmt::Display for ShortSource {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Self::Reg(r) => write!(f, "Reg {}", r),
-            Self::UImm13(u) => write!(f, "U{}", u),
-            Self::SImm13(i) => write!(f, "S{}", i),
-        }
     }
 }
 
