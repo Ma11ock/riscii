@@ -6,10 +6,10 @@
 An emulated PC with a RISC II processor.
 
 ** Feature completeness
-[ ] RISC II emulation
-[ ] SDL window, I/O, sound
-[ ] Firmware (probably IEEE 1275) implementation
-[ ] Floating point co processor
-[ ] Multicore
+- [ ] RISC II emulation
+- [ ] SDL window, I/O, sound
+- [ ] Firmware (probably IEEE 1275) implementation
+- [ ] Floating point co processor
+- [ ] Multicore
 
 
