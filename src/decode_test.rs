@@ -18,11 +18,12 @@
 mod test {
     use super::super::*;
 
-    type I = decode::Instruction;
-    type SS = decode::ShortSource;
-
     use decode::*;
+    use instruction::*;
     use std::fmt;
+
+    type I = Instruction;
+    type SS = ShortSource;
 
     // Privileged instructions.
 
