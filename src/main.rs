@@ -32,23 +32,17 @@ use decode::decode_file;
 use std::fs;
 
 use config::Config;
-use memory::Memory;
-use register::State;
+use system::System;
 
 // Struct/enum declarations.
-
-struct System {
-    regs: register::State,
-    mem: memory::Memory,
-}
 
 fn get_program(path: &String) -> Result<Vec<u8>, String> {
     println!("Opening binary file {}.", path);
 
-    Ok(match fs::read(path) {
-        Ok(raw_p) => raw_p.to_vec(),
-        Err(raw_e) => return Err(raw_e.to_string()),
-    })
+    match fs::read(path) {
+        Ok(raw_p) => Ok(raw_p.to_vec()),
+        Err(raw_e) => Err(raw_e.to_string()),
+    }
 }
 
 fn main() -> Result<(), String> {
@@ -63,15 +57,4 @@ fn main() -> Result<(), String> {
     //let program = get_program(&String::from("test.bin"))?;
 
     Ok(())
-}
-
-// Impls.
-
-impl System {
-    pub fn new(config: &Config) -> Result<Self, String> {
-        Ok(Self {
-            regs: State::new(),
-            mem: Memory::new(config),
-        })
-    }
 }
