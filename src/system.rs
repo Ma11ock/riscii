@@ -19,6 +19,7 @@ use cpu::RegisterFile;
 use memory::Memory;
 use std::fmt;
 
+/// RISC II emulated system.
 pub struct System {
     /// RISC II register file.
     regs: RegisterFile,
@@ -41,6 +42,10 @@ pub struct System {
 // Impls.
 
 impl System {
+    /// Create a new emulated RISC II system. Return system on success and
+    /// a string on error.
+    /// # Arguments
+    /// * `config` - Emulator configuration.
     pub fn new(config: &Config) -> Result<Self, String> {
         Ok(Self {
             regs: RegisterFile::new(),
@@ -79,18 +84,24 @@ CC Carry: {}",
 
 // Private functions.
 
-fn privilege_string(s: bool) -> String {
+/// Create a descriptive string for the system's privilege state bits.
+/// # Arguments
+/// * `s` - Privilege state bit.
+fn privilege_string(s: bool) -> &str {
     if s {
-        "Privileged".to_string()
+        "Privileged"
     } else {
-        "Unprivileged".to_string()
+        "Unprivileged"
     }
 }
 
-fn bool_hl_string(s: bool) -> String {
+/// Stringify booleans with hardware terminology.
+/// # Arguments
+/// * `s` - Boolean.
+fn bool_hl_string(s: bool) -> &str {
     if s {
-        "High".to_string()
+        "High"
     } else {
-        "Low".to_string()
+        "Low"
     }
 }

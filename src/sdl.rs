@@ -1,4 +1,4 @@
-// RISC II emulator configuration.
+// RISC II emulator window and I/O.
 // (C) Ryan Jeffrey <ryan@ryanmj.xyz>, 2022
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -30,16 +30,23 @@ use sdl2::VideoSubsystem;
 
 // Struct definitions.
 
+/// SDL context structs.
 pub struct Context {
+    /// SDL context.
     context: Sdl,
+    /// Video context.
     video_system: VideoSubsystem,
+    /// Window canvas.
     canvas: Canvas<Window>,
+    /// Event queue.
     event_pump: EventPump,
 }
 
 // Struct impls.
 
 impl Context {
+    /// Create a new SDL window/context. Return context on success and a
+    /// string on error.
     pub fn new(config: &Config) -> Result<Self, String> {
         let sdl_context = sdl2::init()?;
         let video_subsystem = sdl_context.video()?;
