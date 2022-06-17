@@ -49,7 +49,7 @@ mod test {
     fn decode_getipc() -> Result<(), DecodeError> {
         assert_eq!(
             decode(0x07293f69)?,
-            I::GetIPC(ShortInstruction::new(true, 5, 4, SS::UImm13(0x1f69)))
+            I::GetLPC(ShortInstruction::new(true, 5, 4, SS::UImm13(0x1f69)))
         );
         Ok(())
     }
@@ -437,7 +437,7 @@ mod test {
                 match *self {
                     I::Calli(o) => format!("Calli {}", o),
                     I::GetPSW(o) => format!("GetPSW {}", o),
-                    I::GetIPC(o) => format!("GetIPC {}", o),
+                    I::GetLPC(o) => format!("GetLPC {}", o),
                     I::PutPSW(o) => format!("GetPSW {}", o),
                     I::Callx(o) => format!("Callx {}", o),
                     I::Callr(o) => format!("Callr {}", o),

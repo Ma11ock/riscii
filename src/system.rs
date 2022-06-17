@@ -15,28 +15,19 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use config::Config;
-use cpu::RegisterFile;
+use cpu::{ProcessorStatusWord, RegisterFile};
 use memory::Memory;
 use std::fmt;
 
 /// RISC II emulated system.
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct System {
     /// RISC II register file.
     regs: RegisterFile,
+    /// Processor status.
+    psw: ProcessorStatusWord,
     /// Memory state.
     mem: Memory,
-    /// System bit, true if running in privileged state.
-    system_mode: bool,
-    /// The previous state of the `system_mode` bit the last time it was changed.
-    previous_system_mode: bool,
-    /// Condition codes zero (Z).
-    cc_zero: bool,
-    /// Condition code negative (N).
-    cc_neg: bool,
-    /// Condition code overflow (V).
-    cc_overflow: bool,
-    /// Condition code carry (C).
-    cc_carry: bool,
 }
 
 // Impls.
@@ -49,14 +40,78 @@ impl System {
     pub fn new(config: &Config) -> Result<Self, String> {
         Ok(Self {
             regs: RegisterFile::new(),
+            psw: ProcessorStatusWord::new(),
             mem: Memory::new(config),
-            system_mode: true,
-            previous_system_mode: false,
-            cc_zero: false,
-            cc_neg: false,
-            cc_overflow: false,
-            cc_carry: false,
         })
+    }
+
+    /// Get the 13 bit PSW value. PSW is the state of the system's special
+    /// registers and CC's. After the 13th bit PSW is 0 padded.
+    /// Format of PSW:
+    /// [0]: Carry bit
+    /// [1]: Overflow bit
+    /// [2]: Negative bit
+    /// [3]: Zero bit
+    /// [4]: Previous system mode bit.
+    /// [5]: System mode bit.
+    /// [6]: Interrupt enable bit.
+    /// [7-9]: SWP register mod 8.
+    /// [10-12]: CWP register mod 8.
+    pub fn get_psw_as_u32(&self) -> u32 {
+        self.psw.to_u32()
+    }
+
+    pub fn call(&mut self, addr: u32) {
+        self.regs.push_reg_window();
+    }
+
+    pub fn ret(&mut self) {
+        self.regs.pop_reg_window();
+    }
+
+    pub fn get_register_file(&mut self) -> &mut RegisterFile {
+        &mut self.regs
+    }
+
+    pub fn copy_register_file(&self) -> RegisterFile {
+        self.regs
+    }
+
+    pub fn get_last_pc(&self) -> u32 {
+        self.regs.get_last_pc()
+    }
+
+    pub fn get_pc(&self) -> u32 {
+        self.regs.get_pc()
+    }
+
+    pub fn get_next_pc(&self) -> u32 {
+        self.regs.get_next_pc()
+    }
+
+    pub fn integrate_system_changes(&mut self, other: &System) {
+        self.regs = other.regs;
+        self.psw = other.psw;
+    }
+
+    pub fn get_psw(&self) -> ProcessorStatusWord {
+        self.psw
+    }
+
+    pub fn set_psw(&mut self, psw: u32) {
+        self.psw = ProcessorStatusWord::from_u32(psw);
+    }
+
+    pub fn copy_no_mem(&self) -> Self {
+        System {
+            regs: self.regs,
+            psw: self.psw,
+            mem: vec![0; 0],
+        }
+    }
+
+    pub fn get_mem_ref(&mut self) -> &mut Memory {
+        &mut self.memory
     }
 }
 
@@ -64,44 +119,9 @@ impl fmt::Display for System {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "CPU register state: \n{}
-Privilege level: {}
-Previous privilege level: {}
-CC Zero: {}
-CC Neg: {}
-CC Overflow: {}
-CC Carry: {}",
-            self.regs,
-            privilege_string(self.system_mode),
-            privilege_string(self.previous_system_mode),
-            bool_hl_string(self.cc_zero),
-            bool_hl_string(self.cc_neg),
-            bool_hl_string(self.cc_overflow),
-            bool_hl_string(self.cc_carry)
+            "CPU register state:\n{}
+Processor Status Word:\n{}",
+            self.regs, self.psw,
         )
-    }
-}
-
-// Private functions.
-
-/// Create a descriptive string for the system's privilege state bits.
-/// # Arguments
-/// * `s` - Privilege state bit.
-fn privilege_string(s: bool) -> &str {
-    if s {
-        "Privileged"
-    } else {
-        "Unprivileged"
-    }
-}
-
-/// Stringify booleans with hardware terminology.
-/// # Arguments
-/// * `s` - Boolean.
-fn bool_hl_string(s: bool) -> &str {
-    if s {
-        "High"
-    } else {
-        "Low"
     }
 }

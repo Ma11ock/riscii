@@ -21,6 +21,11 @@ use std::io::{Read, Write};
 use std::path::Path;
 use std::time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH};
 
+// Public constants.
+
+/// Most significant bit of a u32.
+pub const U32_MSB: u32 = 0x80000000;
+
 // Public struct definitions.
 
 /// File object. Wrapper around fs::File but caches more data.
@@ -94,6 +99,22 @@ pub fn get_home_nofail() -> String {
                 }
             )
         }
+    }
+}
+
+pub fn check_hword_alignment(addr: u32) -> Result<(), String> {
+    if addr & 0x1 != 0 {
+        Err(format!("Bad half word alignment: 0x{:x}", addr))
+    } else {
+        Ok(())
+    }
+}
+
+pub fn check_word_alignment(addr: u32) -> Result<(), String> {
+    if addr & 0x3 != 0 {
+        Err(format!("Bad word alignment: 0x{:x}", addr))
+    } else {
+        Ok(())
     }
 }
 

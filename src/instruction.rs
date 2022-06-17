@@ -59,9 +59,7 @@ pub enum ShortSource {
     /// Register name.
     Reg(u8),
     /// Unsigned 13 bit immediate, 0-padded to 32 bits.
-    UImm13(u32),
-    /// Signed 13 bit immediate, Sign-extended to 32 bits.
-    SImm13(i32),
+    Imm13(u32),
 }
 
 /// Short instruction format data.
@@ -136,32 +134,62 @@ pub enum Instruction {
     /// Call interrupt.
     /// Notes:
     /// - PRIVILEGED INSTRUCTION.
+    /// - Only meant for use by the interrupt handler.
     /// - The `RS1` and `RS1` registers are read from the OLD window.
     /// - The PC instruction saved is the `PC` at the `CALLI`.
     /// - The `Rd` refers to the destination register in the NEW window.
     /// - If the change to `CWP` makes it equal to `SWP`: stop execution,
-    /// generate a trap, and go to address 0x80000020.
-    /// CWP := CWP - 1 MOD 8, rd := LSTPC; CC's have same rules as getipc.
+    ///   generate a trap, and go to address 0x80000020.
+    /// CWP := CWP - 1 MOD 8, rd := LSTPC;
+    /// Iff SCC == true, Z := [LSTPC == 0]; N := LSTPC<31>; V,C := garbage.
     Calli(ShortInstruction),
-    /// Get pointer to window. rd := (-1)<31:13> & PSW<12:0>;
+    /// Get information on the current CPU state and store it in the bottom 13
+    /// bits of rd. Set the top 19 bits to 1.
+    /// Format of PSW:
+    /// [0]: Carry bit
+    /// [1]: Overflow bit
+    /// [2]: Negative bit
+    /// [3]: Zero bit
+    /// [4]: Previous system mode bit.
+    /// [5]: System mode bit.
+    /// [6]: Interrupt enable bit.
+    /// [7-9]: SWP register mod 8.
+    /// [10-12]: CWP register mod 8.
+    /// Notes:
+    /// - Previous instruction must have its SCC bit off (for timing reasons?).
+    /// - shortsource must be a register and r0.
+    /// rd := (-1)<31:13> & PSW<12:0>;
+    /// Iff SCC == true, Z := [dest == 0]; N := LSTPC<31>; V,C := 0.
     GetPSW(ShortInstruction),
     /// Get the last Program Counter. rd := LSTPC.
     /// Iff SCC == true, Z := [LSTPC == 0]; N := LSTPC<31>; V,C := garbage.
     /// Notes:
     /// - PRIVILEGED INSTRUCTION.
-    GetIPC(ShortInstruction),
+    /// - Not transparent to interrupts.
+    /// - rs1 and short_source are discarded.
+    GetLPC(ShortInstruction),
     /// Set PSW. PSW := [rs1 + ShortSource2]<12:0>;
+    /// Format of PSW.
+    /// [0]: Carry bit
+    /// [1]: Overflow bit
+    /// [2]: Negative bit
+    /// [3]: Zero bit
+    /// [4]: Previous system mode bit.
+    /// [5]: System mode bit.
+    /// [6]: Interrupt enable bit.
+    /// [7-9]: SWP register.
+    /// [10-12]: CWP registerr
     /// Notes:
     /// - PRIVILEGED INSTRUCTION.
-    /// - SCC-bit MUST be false.
-    /// - The next instruction CANNOT be `CALLX`, `CALLR`, CALLI`, `RET`, `RETI`,
-    /// i.e. it cannot modify CWP. It also must not set the CC's.
+    /// - SCC-bit MUST be off.
+    /// - The next instruction CANNOT be `CALLX`, `CALLR`, `CALLI`, `RET`, `RETI`,
+    /// i.e. it cannot modify CWP/SWP. It also cannot modify the CC's.
     /// - Rd is discarded.
     /// - New PSW is not in effect until AFTER the next cycle following execution
     /// of this instruction.
     PutPSW(ShortInstruction),
     /// Call procedure at `shortSource` + `rs1`.
-    /// - The `RS1` and `RS1` registers are read from the OLD window.
+    /// - The `RS1` and `RS2` registers are read from the OLD window.
     /// - The PC instruction saved is the `PC` at the `CALLI`.
     /// - The `Rd` refers to the destination register in the NEW window.
     /// - If the change to `CWP` makes it equal to `SWP`: stop execution,
@@ -278,7 +306,7 @@ impl ShortSource {
     pub fn new(opcode: u32, signed: bool) -> Self {
         // Short source immediate-mode bottom 13 bits <12-0> or rs1 <4-0>.
         if opcode & 0x2000 != 0 {
-            let mut tmp = Self::UImm13(opcode & 0x1fff);
+            let mut tmp = Self::Imm13(opcode & 0x1fff);
             if signed {
                 tmp.uimm_to_simm()
             } else {
@@ -293,15 +321,14 @@ impl ShortSource {
     /// convert it a signed constant. Else, return `self`.
     pub fn uimm_to_simm(&self) -> Self {
         match *self {
-            Self::UImm13(u) => {
+            Self::Imm13(u) => {
                 if u & 0x1000 != 0 {
                     // Sign-extend the 13 bit value to 32 bits.
-                    Self::SImm13(-(u as i32))
+                    Self::Imm13((-(u as i32)) as u32)
                 } else {
-                    Self::SImm13(u as i32)
+                    Self::Imm13(u)
                 }
             }
-            Self::SImm13(s) => *self,
             Self::Reg(r) => *self,
         }
     }
@@ -311,8 +338,7 @@ impl fmt::Display for ShortSource {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Self::Reg(r) => write!(f, "Reg {}", r),
-            Self::UImm13(u) => write!(f, "U{}", u),
-            Self::SImm13(i) => write!(f, "S{}", i),
+            Self::Imm13(u) => write!(f, "U{}", u),
         }
     }
 }
@@ -321,8 +347,7 @@ impl LowerHex for ShortSource {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Self::Reg(r) => write!(f, "Register {:x}", r),
-            Self::UImm13(u) => write!(f, "(UImm) {:x}", u),
-            Self::SImm13(i) => write!(f, "(SImm) {:x}", i),
+            Self::Imm13(u) => write!(f, "(UImm) {:x}", u),
         }
     }
 }

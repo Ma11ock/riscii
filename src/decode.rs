@@ -65,7 +65,7 @@ pub fn decode(opcode: u32) -> Result<Instruction, DecodeError> {
             0 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
             1 => I::Calli(ShortInstruction::new(scc, dest, rs1, short_source)),
             2 => I::GetPSW(ShortInstruction::new(scc, dest, rs1, short_source)),
-            3 => I::GetIPC(ShortInstruction::new(scc, dest, rs1, short_source)),
+            3 => I::GetLPC(ShortInstruction::new(scc, dest, rs1, short_source)),
             4 => I::PutPSW(ShortInstruction::new(scc, dest, rs1, short_source)),
             5..=7 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
             8 => I::Callx(ShortInstruction::new(scc, dest, rs1, short_source)),
