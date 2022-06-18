@@ -27,6 +27,7 @@ use sdl2::video::Window;
 use sdl2::EventPump;
 use sdl2::Sdl;
 use sdl2::VideoSubsystem;
+use util::Result;
 
 // Struct definitions.
 
@@ -47,7 +48,7 @@ pub struct Context {
 impl Context {
     /// Create a new SDL window/context. Return context on success and a
     /// string on error.
-    pub fn new(config: &Config) -> Result<Self, String> {
+    pub fn new(config: &Config) -> Result<Self> {
         let sdl_context = sdl2::init()?;
         let video_subsystem = sdl_context.video()?;
         let window = video_subsystem

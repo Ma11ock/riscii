@@ -18,9 +18,10 @@ use config::Config;
 use cpu::{ProcessorStatusWord, RegisterFile};
 use memory::Memory;
 use std::fmt;
+use util::Result;
 
 /// RISC II emulated system.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct System {
     /// RISC II register file.
     regs: RegisterFile,
@@ -37,7 +38,7 @@ impl System {
     /// a string on error.
     /// # Arguments
     /// * `config` - Emulator configuration.
-    pub fn new(config: &Config) -> Result<Self, String> {
+    pub fn new(config: &Config) -> Result<Self> {
         Ok(Self {
             regs: RegisterFile::new(),
             psw: ProcessorStatusWord::new(),
@@ -62,11 +63,11 @@ impl System {
     }
 
     pub fn call(&mut self, addr: u32) {
-        self.regs.push_reg_window();
+        self.psw.push_reg_window();
     }
 
     pub fn ret(&mut self) {
-        self.regs.pop_reg_window();
+        self.psw.pop_reg_window();
     }
 
     pub fn get_register_file(&mut self) -> &mut RegisterFile {
@@ -106,12 +107,12 @@ impl System {
         System {
             regs: self.regs,
             psw: self.psw,
-            mem: vec![0; 0],
+            mem: Memory::from_size(0),
         }
     }
 
     pub fn get_mem_ref(&mut self) -> &mut Memory {
-        &mut self.memory
+        &mut self.mem
     }
 }
 

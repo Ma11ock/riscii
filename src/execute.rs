@@ -31,13 +31,13 @@ pub struct ExecResult {
 // Public functions.
 
 // TODO timing and memory reads/writes. Need to emulate the pipeline and cpu clock.
-pub fn execute(instruction: &Instruction, system: &mut System) -> Result<ExecResult, String> {
+pub fn execute(instruction: &Instruction, system: &mut System) -> Result<ExecResult> {
     type I = Instruction;
 
     let mut result = ExecResult::from_system(system);
     let mut register_file = result.get_register_file();
     let cur_pc = register_file.get_pc();
-
+    let cur_psw = system.get_psw();
     let mut memory = system.get_mem_ref();
 
     match *instruction {
@@ -65,7 +65,7 @@ pub fn execute(instruction: &Instruction, system: &mut System) -> Result<ExecRes
             rs1: _,
             short_source: ss,
         } => {
-            let psw = system.get_psw12() & 0xffff7;
+            let psw = cur_psw & 0xffff7;
             register_file.rus(dest, psw)?;
             if scc {
                 let dest_val = register_file.ru(dest)?;
@@ -104,7 +104,7 @@ pub fn execute(instruction: &Instruction, system: &mut System) -> Result<ExecRes
                 // TODO error
             }
 
-            let val = register_file.get_ss_val(ss)?;
+            let val = register_file.get_ss_val(ss, cur_psw)?;
             result.set_psw(register_file.ru(rs1)? + val);
         }
         I::Callx {
@@ -115,7 +115,7 @@ pub fn execute(instruction: &Instruction, system: &mut System) -> Result<ExecRes
         } => {
             // TODO test alignment (addr[0] == 1).
             let rs_val = register_file.ru(rs1)?;
-            let addr = register_file.get_ss_val(ss)? + rs_val;
+            let addr = register_file.get_ss_val(ss, cur_psw)? + rs_val;
             register_file.push_reg_window();
             register_file.branch_to(addr);
             result.rus(cur_pc)?;
@@ -140,7 +140,7 @@ pub fn execute(instruction: &Instruction, system: &mut System) -> Result<ExecRes
             if exec_conditional(cond, result.get_psw()) {
                 result.set_branch(true);
                 let rs_val = register_file.ru(rs1)?;
-                let addr = register_file.get_ss_val(ss)? + rs_val;
+                let addr = register_file.get_ss_val(ss, cur_psw)? + rs_val;
                 register_file.branch_to(addr);
             }
         }
@@ -190,7 +190,7 @@ pub fn execute(instruction: &Instruction, system: &mut System) -> Result<ExecRes
             short_source: ss,
         } => {
             let s1_val = register_file.ru(rs1)?;
-            let s2_val = register_file.get_ss_val(ss)?;
+            let s2_val = register_file.get_ss_val(ss, cur_psw)?;
             let d = register_file.rus(dest, s1_val << s2_val)?;
             if scc {
                 set_shift_cc(result.get_psw_ref(), d);
@@ -203,7 +203,7 @@ pub fn execute(instruction: &Instruction, system: &mut System) -> Result<ExecRes
             short_source: ss,
         } => {
             let s1_val = register_file.ru(rs1)?;
-            let s2_val = register_file.get_ss_val(ss)?;
+            let s2_val = register_file.get_ss_val(ss, cur_psw)?;
             let d = register_file.rus(dest, s1_val >> s2_val)?;
             if scc {
                 set_shift_cc(scc, result.get_psw_ref(), d);
@@ -216,7 +216,7 @@ pub fn execute(instruction: &Instruction, system: &mut System) -> Result<ExecRes
             short_source: ss,
         } => {
             let s1_val = register_file.ru(rs1)?;
-            let s2_val = register_file.get_ss_val(ss)?;
+            let s2_val = register_file.get_ss_val(ss, cur_psw)?;
             let d = register_file.rus(dest, s1_val as i32 >> s2_val)?;
             if scc {
                 set_shift_cc(result.get_psw_ref(), d);
@@ -229,7 +229,7 @@ pub fn execute(instruction: &Instruction, system: &mut System) -> Result<ExecRes
             short_source: ss,
         } => {
             let s1_val = register_file.ru(rs1)?;
-            let s2_val = register_file.get_ss_val(ss)?;
+            let s2_val = register_file.get_ss_val(ss, cur_psw)?;
             let d = register_file.rus(dest, s1_val | s2_val)?;
             if scc {
                 set_shift_cc(result.get_psw_ref(), d);
@@ -242,7 +242,7 @@ pub fn execute(instruction: &Instruction, system: &mut System) -> Result<ExecRes
             short_source: ss,
         } => {
             let s1_val = register_file.ru(rs1)?;
-            let s2_val = register_file.get_ss_val(ss)?;
+            let s2_val = register_file.get_ss_val(ss, cur_psw)?;
             let d = register_file.rus(dest, s1_val & s2_val)?;
             if scc {
                 set_shift_cc(result.get_psw_ref(), d);
@@ -255,7 +255,7 @@ pub fn execute(instruction: &Instruction, system: &mut System) -> Result<ExecRes
             short_source: ss,
         } => {
             let s1_val = register_file.ru(rs1)?;
-            let s2_val = register_file.get_ss_val(ss)?;
+            let s2_val = register_file.get_ss_val(ss, cur_psw)?;
             let d = register_file.rus(dest, s1_val ^ s2_val)?;
             if scc {
                 set_shift_cc(result.get_psw_ref(), d);
@@ -268,7 +268,7 @@ pub fn execute(instruction: &Instruction, system: &mut System) -> Result<ExecRes
             short_source: ss,
         } => {
             let s1_val = register_file.ru(rs1)?;
-            let s2_val = register_file.get_ss_val(ss)?;
+            let s2_val = register_file.get_ss_val(ss, cur_psw)?;
             let (res, o) = s1_val.overflowing_add(s2_val);
             let d = register_file.rus(dest, res)?;
             if scc {
@@ -285,7 +285,7 @@ pub fn execute(instruction: &Instruction, system: &mut System) -> Result<ExecRes
             short_source: ss,
         } => {
             let s1_val = register_file.ru(rs1)?;
-            let s2_val = register_file.get_ss_val(ss)?;
+            let s2_val = register_file.get_ss_val(ss, cur_psw)?;
             let mut psw = result.get_psw_ref();
             let (r1, o1) = s1_val.overflowing_add(s2_val);
             let (res, o2) = r1.overflowing_add(psw.get_cc_carry() as u32);
@@ -304,7 +304,7 @@ pub fn execute(instruction: &Instruction, system: &mut System) -> Result<ExecRes
             short_source: ss,
         } => {
             let s1_val = register_file.ru(rs1)?;
-            let s2_val = register_file.get_ss_val(ss)?;
+            let s2_val = register_file.get_ss_val(ss, cur_psw)?;
             let (res, o) = s1_val.overflowing_sub(s2_val);
             let d = register_file.rus(dest, res)?;
             if scc {
@@ -321,7 +321,7 @@ pub fn execute(instruction: &Instruction, system: &mut System) -> Result<ExecRes
             short_source: ss,
         } => {
             let s1_val = register_file.ru(rs1)?;
-            let s2_val = register_file.get_ss_val(ss)?;
+            let s2_val = register_file.get_ss_val(ss, cur_psw)?;
             let mut psw = result.get_psw_ref();
             let (r1, o1) = s1_val.overflowing_sub(s2_val);
             let (res, o2) = r1.overflowing_sub(!psw.get_cc_carry() as u32);
@@ -341,7 +341,7 @@ pub fn execute(instruction: &Instruction, system: &mut System) -> Result<ExecRes
             short_source: ss,
         } => {
             let s1_val = register_file.ru(rs1)?;
-            let s2_val = register_file.get_ss_val(ss)?;
+            let s2_val = register_file.get_ss_val(ss, cur_psw)?;
             let (res, o) = s2_val.overflowing_sub(s1_val);
             let d = register_file.rus(dest, res)?;
             if scc {
@@ -359,7 +359,7 @@ pub fn execute(instruction: &Instruction, system: &mut System) -> Result<ExecRes
             short_source: ss,
         } => {
             let s1_val = register_file.ru(rs1)?;
-            let s2_val = register_file.get_ss_val(ss)?;
+            let s2_val = register_file.get_ss_val(ss, cur_psw)?;
             let mut psw = result.get_psw_ref();
             let (r1, o1) = s2_val.overflowing_sub(s1_val);
             let (res, o2) = r1.overflowing_sub(!psw.get_cc_carry() as u32);
@@ -390,7 +390,7 @@ pub fn execute(instruction: &Instruction, system: &mut System) -> Result<ExecRes
             short_source: ss,
         } => {
             // TODO Test alignment
-            let ss_val = register_file.get_ss_val(ss)?;
+            let ss_val = register_file.get_ss_val(ss, cur_psw)?;
             let d = register_file.rus(dest, memory.get_word(ss_val)?)?;
             if scc {
                 set_load_cc(result.get_psw_ref(), d);
@@ -413,7 +413,7 @@ pub fn execute(instruction: &Instruction, system: &mut System) -> Result<ExecRes
             rs1: rs1,
             short_source: ss,
         } => {
-            let ss_val = register_file.get_ss_val(ss)?;
+            let ss_val = register_file.get_ss_val(ss, cur_psw)?;
             let d = register_file.rus(dest, memory.get_hword(ss_val)? as i32 as u32)?;
             if scc {
                 set_load_cc(result.get_psw_ref(), d);
@@ -436,7 +436,7 @@ pub fn execute(instruction: &Instruction, system: &mut System) -> Result<ExecRes
             rs1: rs1,
             short_source: ss,
         } => {
-            let ss_val = register_file.get_ss_val(ss)?;
+            let ss_val = register_file.get_ss_val(ss, cur_psw)?;
             let d = register_file.rus(dest, memory.get_hword(ss_val)? as u32)?;
             if scc {
                 set_load_cc(result.get_psw_ref(), d);
@@ -459,7 +459,7 @@ pub fn execute(instruction: &Instruction, system: &mut System) -> Result<ExecRes
             rs1: rs1,
             short_source: ss,
         } => {
-            let ss_val = register_file.get_ss_val(ss)?;
+            let ss_val = register_file.get_ss_val(ss, cur_psw)?;
             let d = register_file.rus(dest, memory.get_byte(ss_val)? as i32 as u32)?;
             if scc {
                 set_load_cc(result.get_psw_ref(), d);
@@ -482,7 +482,7 @@ pub fn execute(instruction: &Instruction, system: &mut System) -> Result<ExecRes
             rs1: rs1,
             short_source: ss,
         } => {
-            let ss_val = register_file.get_ss_val(ss)?;
+            let ss_val = register_file.get_ss_val(ss, cur_psw)?;
             let d = register_file.rus(dest, memory.get_byte(ss_val)? as u32)?;
             if scc {
                 set_load_cc(result.get_psw_ref(), d);
@@ -509,7 +509,7 @@ pub fn execute(instruction: &Instruction, system: &mut System) -> Result<ExecRes
                 // warn
                 // return Err("Store instructions should be immediate only (not registers)");
             }
-            let ss_val = register_file.get_ss_val(ss)?;
+            let ss_val = register_file.get_ss_val(ss, cur_psw)?;
             let rs1_val = register_file.ru(rs1);
             let dest_val = register_file.ru(dest);
             memory.set_word(ss_val + rs1_val, dest_val);
@@ -542,7 +542,7 @@ pub fn execute(instruction: &Instruction, system: &mut System) -> Result<ExecRes
                 // warn
                 // return Err("Store instructions should be immediate only (not registers)");
             }
-            let ss_val = register_file.get_ss_val(ss)?;
+            let ss_val = register_file.get_ss_val(ss, cur_psw)?;
             let rs1_val = register_file.ru(rs1);
             let dest_val = register_file.ru(dest);
             memory.set_hword(ss_val + rs1_val, dest_val as u16);
@@ -575,7 +575,7 @@ pub fn execute(instruction: &Instruction, system: &mut System) -> Result<ExecRes
                 // warn
                 // return Err("Store instructions should be immediate only (not registers)");
             }
-            let ss_val = register_file.get_ss_val(ss)?;
+            let ss_val = register_file.get_ss_val(ss, cur_psw)?;
             let rs1_val = register_file.ru(rs1);
             let dest_val = register_file.ru(dest);
             memory.set_byte(ss_val + rs1_val, dest_val as u8);

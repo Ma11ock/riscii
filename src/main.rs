@@ -21,31 +21,25 @@ mod decode_test;
 mod main_test;
 
 mod config;
+mod cpu;
 mod decode;
 mod instruction;
 mod memory;
-mod register;
 mod sdl;
+mod system;
 mod util;
 
 use decode::decode_file;
 use std::fs;
 
 use config::Config;
+use std::boxed::Box;
+use std::error::Error;
 use system::System;
 
 // Struct/enum declarations.
 
-fn get_program(path: &String) -> Result<Vec<u8>, String> {
-    println!("Opening binary file {}.", path);
-
-    match fs::read(path) {
-        Ok(raw_p) => Ok(raw_p.to_vec()),
-        Err(raw_e) => Err(raw_e.to_string()),
-    }
-}
-
-fn main() -> Result<(), String> {
+fn main() -> Result<(), Box<dyn Error>> {
     let config = Config::init()?;
     let context = sdl::Context::new(&config)?;
 
@@ -54,7 +48,8 @@ fn main() -> Result<(), String> {
         "Running emulator with the following configuration: \n{}\n",
         config
     );
-    //let program = get_program(&String::from("test.bin"))?;
+    //println!("Opening binary file {}.", path);
+    //let program = fs::read(path)?;
 
     Ok(())
 }

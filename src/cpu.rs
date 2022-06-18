@@ -16,6 +16,9 @@ use instruction::ShortSource;
 use memory::Memory;
 use std::convert::TryInto;
 use std::fmt;
+use util::Result;
+
+use berr;
 
 /// The number of register windows the RISCII supports.
 pub const NUM_REG_WINDOWS: usize = 8;
@@ -54,7 +57,7 @@ pub struct ProcessorStatusWord {
     /// Saved window pointer (MOD 8).
     swp: u32,
     /// If interrupts are enabled.
-    interrupt_enable_bit: bool,
+    interrupts_enabled: bool,
     /// System bit, true if running in privileged state.
     system_mode: bool,
     /// The previous state of the `system_mode` bit the last time it was changed.
@@ -191,11 +194,13 @@ impl RegisterFile {
     /// Anything outside this [0-31] range is an invalid argument.
     /// # Arguments
     /// * `which` - Which register. [0-31] are the only valid values.
-    pub fn ru(&self, which: u32, psw: &ProcessorStatusWord) -> Result<u32, String> {
+    /// * `psw` - Processor status object, contains window information.
+    pub fn ru(&self, which: u32, psw: &ProcessorStatusWord) -> Result<u32> {
+        let which = which as usize;
         Ok(match which {
             0..=9 => self.globals[which],
-            10..=31 => self.window_regs[NUM_ADDED_PER_WINDOW * psw.get_cwp() + rd],
-            _ => return Err(format!("Register {} is out of range", which)),
+            10..=31 => self.window_regs[NUM_ADDED_PER_WINDOW * psw.get_cwp() as usize + which],
+            _ => return berr!(format!("Register {} is out of range", which)),
         })
     }
 
@@ -208,7 +213,8 @@ impl RegisterFile {
     /// Anything outside this [0-31] range is an invalid argument.
     /// # Arguments
     /// * `which` - Which register. [0-31] are the only valid values.
-    pub fn rs(&self, which: u32, psw: &ProcessorStatusWord) -> Result<i32, String> {
+    /// * `psw` - Processor status object, contains window information.
+    pub fn rs(&self, which: u32, psw: &ProcessorStatusWord) -> Result<i32> {
         Ok(self.ru(which, psw)? as i32)
     }
 
@@ -221,11 +227,15 @@ impl RegisterFile {
     /// Anything outside this [0-31] range is an invalid argument.
     /// # Arguments
     /// * `which` - Which register. [0-31] are the only valid values.
-    pub fn rus(&mut self, which: u32, value: u32, psw: ProcessorStatusWord) -> Result<u32, String> {
+    /// * `psw` - Processor status object, contains window information.
+    pub fn rus(&mut self, which: u32, value: u32, psw: ProcessorStatusWord) -> Result<u32> {
+        let which = which as usize;
         match which {
             0..=9 => self.globals[which] = value,
-            10..=31 => self.window_regs[NUM_ADDED_PER_WINDOW * psw.get_cwp() + rd] = value,
-            _ => return Err(format!("Register {} is out of range", which)),
+            10..=31 => {
+                self.window_regs[NUM_ADDED_PER_WINDOW * psw.get_cwp() as usize + which] = value
+            }
+            _ => return berr!(format!("Register {} is out of range", which)),
         }
         Ok(value)
     }
@@ -250,14 +260,14 @@ impl RegisterFile {
 
     pub fn branch_to(&mut self, to: u32) {
         self.lstpc = self.pc;
-        self.pc = nxtpc;
+        self.pc = self.nxtpc;
         self.nxtpc = to;
     }
 
-    pub fn get_ss_val(&self, ss: ShortSource) -> Result<u32, String> {
+    pub fn get_ss_val(&self, ss: ShortSource, psw: &ProcessorStatusWord) -> Result<u32> {
         type SS = ShortSource;
         Ok(match ss {
-            SS::Reg(r) => self.ru(r as u32)?,
+            SS::Reg(r) => self.ru(r as u32, psw)?,
             SS::Imm13(u) => u,
         })
     }
@@ -283,7 +293,7 @@ impl ProcessorStatusWord {
         Self {
             cwp: 0,
             swp: 0,
-            interrupt_enable_bit: false,
+            interrupts_enabled: false,
             system_mode: false,
             previous_system_mode: false,
             cc_zero: false,
@@ -297,9 +307,9 @@ impl ProcessorStatusWord {
         Self {
             cwp: (v & (0x7 << 7)) >> 7,
             swp: (v & (0x7 << 10)) >> 10,
-            interrupt_enabled_bit: v & (0x1 << 6) != 0,
-            previous_system_bit: v & (0x1 << 5) != 0,
-            system_bit: v & (0x1 << 4) != 0,
+            interrupts_enabled: v & (0x1 << 6) != 0,
+            previous_system_mode: v & (0x1 << 5) != 0,
+            system_mode: v & (0x1 << 4) != 0,
             cc_zero: v & (0x1 << 3) != 0,
             cc_neg: v & (0x1 << 2) != 0,
             cc_overflow: v & (0x1 << 1) != 0,
@@ -310,9 +320,9 @@ impl ProcessorStatusWord {
     pub fn init(
         cwp: u32,
         swp: u32,
-        interrupt_enable_bit: bool,
-        previous_system_bit: bool,
-        system_bit: bool,
+        interrupts_enabled: bool,
+        previous_system_mode: bool,
+        system_mode: bool,
         cc_zero: bool,
         cc_neg: bool,
         cc_overflow: bool,
@@ -321,9 +331,9 @@ impl ProcessorStatusWord {
         Self {
             cwp: cwp % 8,
             swp: swp % 8,
-            interrupt_enable_bit: interrupt_enable_bit,
-            previous_system_bit: previous_system_bit,
-            system_bit: system_bit,
+            interrupts_enabled: interrupts_enabled,
+            previous_system_mode: previous_system_mode,
+            system_mode: system_mode,
             cc_zero: cc_zero,
             cc_neg: cc_neg,
             cc_overflow: cc_overflow,
@@ -350,7 +360,7 @@ impl ProcessorStatusWord {
             | (self.cc_zero as u32) << 3
             | (self.previous_system_mode as u32) << 4
             | (self.system_mode as u32) << 5
-            | (self.interrupt_enable_bit as u32) << 6
+            | (self.interrupts_enabled as u32) << 6
             | (self.cwp) << 7
             | (self.swp) << 10)
             & 0x1fff
@@ -359,29 +369,29 @@ impl ProcessorStatusWord {
     /// Push the register window stack. Set CWP to CWP-1 MOD 8. Push the top
     /// window to memory and increment SWP if necessary.
     pub fn push_reg_window(&mut self) {
-        self.cwp = (self.cwp - 1) % NUM_REG_WINDOWS;
+        self.cwp = (self.cwp - 1) % NUM_REG_WINDOWS as u32;
         if self.cwp == self.swp {
             // TODO save windows to memory.
-            self.swp = (self.swp + 1) % NUM_REG_WINDOWS;
+            self.swp = (self.swp + 1) % NUM_REG_WINDOWS as u32;
         }
     }
 
     /// Pop the register window stack. Set CWP to CWP+1 MOD 8. Pull the bottom
     /// window from memory and decrement SWP if necessary.
     pub fn pop_reg_window(&mut self) {
-        self.cwp = (self.cwp + 1) % NUM_REG_WINDOWS;
+        self.cwp = (self.cwp + 1) % NUM_REG_WINDOWS as u32;
         if self.cwp == self.swp {
             // TODO restore windows from memory.
-            self.swp = (self.swp - 1) % NUM_REG_WINDOWS;
+            self.swp = (self.swp - 1) % NUM_REG_WINDOWS as u32;
         }
     }
 
     pub fn set_cwp(&mut self, v: u32) {
-        self.cwp = v % NUM_REG_WINDOWS;
+        self.cwp = v % NUM_REG_WINDOWS as u32;
     }
 
     pub fn set_swp(&mut self, v: u32) {
-        self.swp = v % NUM_REG_WINDOWS;
+        self.swp = v % NUM_REG_WINDOWS as u32;
     }
 
     pub fn get_cwp(&self) -> u32 {
@@ -424,16 +434,16 @@ impl ProcessorStatusWord {
         self.cc_neg = value;
     }
 
-    pub fn set_system_bit(&mut self, v: bool) {
+    pub fn set_system_mode(&mut self, v: bool) {
         self.system_mode = v;
     }
 
-    pub fn set_previous_system_bit(&mut self, v: bool) {
+    pub fn set_previous_system_mode(&mut self, v: bool) {
         self.previous_system_mode = v;
     }
 
     pub fn set_interrupt_enabled(&mut self, v: bool) {
-        self.interrupt_enable_bit = v;
+        self.interrupts_enabled = v;
     }
 
     pub fn is_system_mode(&self) -> bool {
@@ -445,7 +455,7 @@ impl ProcessorStatusWord {
     }
 
     pub fn is_interrupt_enabled(&self) -> bool {
-        self.interrupt_enable_bit
+        self.interrupts_enabled
     }
 }
 
@@ -464,6 +474,7 @@ CC Overflow: {}
 CC Carry: {}",
             self.cwp,
             self.swp,
+            privilege_string(self.interrupts_enabled),
             privilege_string(self.system_mode),
             privilege_string(self.previous_system_mode),
             bool_hl_string(self.cc_zero),
@@ -479,7 +490,7 @@ CC Carry: {}",
 /// Create a descriptive string for the system's privilege state bits.
 /// # Arguments
 /// * `s` - Privilege state bit.
-fn privilege_string(s: bool) -> &str {
+fn privilege_string(s: bool) -> &'static str {
     if s {
         "Privileged"
     } else {
@@ -490,7 +501,7 @@ fn privilege_string(s: bool) -> &str {
 /// Stringify booleans with hardware terminology.
 /// # Arguments
 /// * `s` - Boolean.
-fn bool_hl_string(s: bool) -> &str {
+fn bool_hl_string(s: bool) -> &'static str {
     if s {
         "High"
     } else {

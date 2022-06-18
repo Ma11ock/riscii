@@ -17,6 +17,7 @@
 #[path = "decode.rs"]
 mod test {
     use super::super::*;
+    use util::Result;
 
     use decode::*;
     use instruction::*;
@@ -28,7 +29,7 @@ mod test {
     // Privileged instructions.
 
     #[test]
-    fn decode_calli() -> Result<(), DecodeError> {
+    fn decode_calli() -> Result<()> {
         assert_eq!(
             decode(0x0329f00f)?,
             I::Calli(ShortInstruction::new(true, 5, 7, SS::UImm13(4111)))
@@ -37,7 +38,7 @@ mod test {
     }
 
     #[test]
-    fn decode_getpsw() -> Result<(), DecodeError> {
+    fn decode_getpsw() -> Result<()> {
         assert_eq!(
             decode(0x05293fff)?,
             I::GetPSW(ShortInstruction::new(true, 5, 4, SS::UImm13(0x1fff)))
@@ -46,7 +47,7 @@ mod test {
     }
 
     #[test]
-    fn decode_getipc() -> Result<(), DecodeError> {
+    fn decode_getipc() -> Result<()> {
         assert_eq!(
             decode(0x07293f69)?,
             I::GetLPC(ShortInstruction::new(true, 5, 4, SS::UImm13(0x1f69)))
@@ -55,7 +56,7 @@ mod test {
     }
 
     #[test]
-    fn decode_putpsw() -> Result<(), DecodeError> {
+    fn decode_putpsw() -> Result<()> {
         assert_eq!(
             decode(0x09293f69)?,
             I::PutPSW(ShortInstruction::new(true, 5, 4, SS::UImm13(0x1f69)))
@@ -66,7 +67,7 @@ mod test {
     // (unpriveleged) Call/jump/ret instructions.
 
     #[test]
-    fn decode_callx() -> Result<(), DecodeError> {
+    fn decode_callx() -> Result<()> {
         assert_eq!(
             decode(0x11293f69)?,
             I::Callx(ShortInstruction::new(true, 5, 4, SS::UImm13(0x1f69)))
@@ -75,7 +76,7 @@ mod test {
     }
 
     #[test]
-    fn decode_callr() -> Result<(), DecodeError> {
+    fn decode_callr() -> Result<()> {
         assert_eq!(
             decode(0x132b3420)?,
             I::Callr(LongInstruction::new(true, 5, 0x33420))
@@ -84,7 +85,7 @@ mod test {
     }
 
     #[test]
-    fn decode_jmpx() -> Result<(), DecodeError> {
+    fn decode_jmpx() -> Result<()> {
         assert_eq!(
             decode(0x19293f69)?,
             I::Jmpx(ShortConditional::new(
@@ -98,7 +99,7 @@ mod test {
     }
 
     #[test]
-    fn decode_jmpr() -> Result<(), DecodeError> {
+    fn decode_jmpr() -> Result<()> {
         assert_eq!(
             decode(0x1bfb3420)?,
             I::Jmpr(LongConditional::new(true, Conditional::Alw, 0x33420))
@@ -107,7 +108,7 @@ mod test {
     }
 
     #[test]
-    fn decode_ret() -> Result<(), DecodeError> {
+    fn decode_ret() -> Result<()> {
         assert_eq!(
             decode(0x1d293f69)?,
             I::Ret(ShortConditional::new(
@@ -121,7 +122,7 @@ mod test {
     }
 
     #[test]
-    fn decode_reti() -> Result<(), DecodeError> {
+    fn decode_reti() -> Result<()> {
         assert_eq!(
             decode(0x1f293f69)?,
             I::Reti(ShortConditional::new(
@@ -137,7 +138,7 @@ mod test {
     // Arithmetic and logic instructions (except ldhi).
 
     #[test]
-    fn decode_sll() -> Result<(), DecodeError> {
+    fn decode_sll() -> Result<()> {
         assert_eq!(
             decode(0x23293f69)?,
             I::Sll(ShortInstruction::new(true, 5, 4, SS::UImm13(0x1f69)))
@@ -146,7 +147,7 @@ mod test {
     }
 
     #[test]
-    fn decode_sra() -> Result<(), DecodeError> {
+    fn decode_sra() -> Result<()> {
         assert_eq!(
             decode(0x25293f69)?,
             I::Sra(ShortInstruction::new(true, 5, 4, SS::UImm13(0x1f69)))
@@ -155,7 +156,7 @@ mod test {
     }
 
     #[test]
-    fn decode_srl() -> Result<(), DecodeError> {
+    fn decode_srl() -> Result<()> {
         assert_eq!(
             decode(0x27293f69)?,
             I::Srl(ShortInstruction::new(true, 5, 4, SS::UImm13(0x1f69)))
@@ -164,7 +165,7 @@ mod test {
     }
 
     #[test]
-    fn decode_ldhi() -> Result<(), DecodeError> {
+    fn decode_ldhi() -> Result<()> {
         assert_eq!(
             decode(0x292b3f69)?,
             I::Ldhi(LongInstruction::new(true, 5, 0x33f69))
@@ -173,7 +174,7 @@ mod test {
     }
 
     #[test]
-    fn decode_and() -> Result<(), DecodeError> {
+    fn decode_and() -> Result<()> {
         assert_eq!(
             decode(0x2b293f69)?,
             I::And(ShortInstruction::new(true, 5, 4, SS::UImm13(0x1f69)))
@@ -182,7 +183,7 @@ mod test {
     }
 
     #[test]
-    fn decode_or() -> Result<(), DecodeError> {
+    fn decode_or() -> Result<()> {
         assert_eq!(
             decode(0x2d293f69)?,
             I::Or(ShortInstruction::new(true, 5, 4, SS::UImm13(0x1f69)))
@@ -191,7 +192,7 @@ mod test {
     }
 
     #[test]
-    fn decode_xor() -> Result<(), DecodeError> {
+    fn decode_xor() -> Result<()> {
         assert_eq!(
             decode(0x2f293f69)?,
             I::Xor(ShortInstruction::new(true, 5, 4, SS::UImm13(0x1f69)))
@@ -200,7 +201,7 @@ mod test {
     }
 
     #[test]
-    fn decode_add() -> Result<(), DecodeError> {
+    fn decode_add() -> Result<()> {
         assert_eq!(
             decode(0x31293f69)?,
             I::Add(ShortInstruction::new(true, 5, 4, SS::UImm13(0x1f69)))
@@ -209,7 +210,7 @@ mod test {
     }
 
     #[test]
-    fn decode_addc() -> Result<(), DecodeError> {
+    fn decode_addc() -> Result<()> {
         assert_eq!(
             decode(0x33293f69)?,
             I::Addc(ShortInstruction::new(true, 5, 4, SS::UImm13(0x1f69)))
@@ -218,7 +219,7 @@ mod test {
     }
 
     #[test]
-    fn decode_sub() -> Result<(), DecodeError> {
+    fn decode_sub() -> Result<()> {
         assert_eq!(
             decode(0x39293f69)?,
             I::Sub(ShortInstruction::new(true, 5, 4, SS::UImm13(0x1f69)))
@@ -227,7 +228,7 @@ mod test {
     }
 
     #[test]
-    fn decode_subc() -> Result<(), DecodeError> {
+    fn decode_subc() -> Result<()> {
         assert_eq!(
             decode(0x3b293f69)?,
             I::Subc(ShortInstruction::new(true, 5, 4, SS::UImm13(0x1f69)))
@@ -236,7 +237,7 @@ mod test {
     }
 
     #[test]
-    fn decode_subi() -> Result<(), DecodeError> {
+    fn decode_subi() -> Result<()> {
         assert_eq!(
             decode(0x3d293f69)?,
             I::Subi(ShortInstruction::new(true, 5, 4, SS::UImm13(0x1f69)))
@@ -245,7 +246,7 @@ mod test {
     }
 
     #[test]
-    fn decode_subci() -> Result<(), DecodeError> {
+    fn decode_subci() -> Result<()> {
         assert_eq!(
             decode(0x3f293f69)?,
             I::Subci(ShortInstruction::new(true, 5, 4, SS::UImm13(0x1f69)))
@@ -256,7 +257,7 @@ mod test {
     // Load instructions.
 
     #[test]
-    fn decode_ldxw() -> Result<(), DecodeError> {
+    fn decode_ldxw() -> Result<()> {
         assert_eq!(
             decode(0x4d293f69)?,
             I::Ldxw(ShortInstruction::new(true, 5, 4, SS::UImm13(0x1f69)))
@@ -265,7 +266,7 @@ mod test {
     }
 
     #[test]
-    fn decode_ldrw() -> Result<(), DecodeError> {
+    fn decode_ldrw() -> Result<()> {
         assert_eq!(
             decode(0x4f2b3f69)?,
             I::Ldrw(LongInstruction::new(true, 5, 0x33f69))
@@ -274,7 +275,7 @@ mod test {
     }
 
     #[test]
-    fn decode_ldxhu() -> Result<(), DecodeError> {
+    fn decode_ldxhu() -> Result<()> {
         assert_eq!(
             decode(0x51293f69)?,
             I::Ldxhu(ShortInstruction::new(true, 5, 4, SS::UImm13(0x1f69)))
@@ -283,7 +284,7 @@ mod test {
     }
 
     #[test]
-    fn decode_ldrhu() -> Result<(), DecodeError> {
+    fn decode_ldrhu() -> Result<()> {
         assert_eq!(
             decode(0x532b3f69)?,
             I::Ldrhu(LongInstruction::new(true, 5, 0x33f69))
@@ -292,7 +293,7 @@ mod test {
     }
 
     #[test]
-    fn decode_ldxhs() -> Result<(), DecodeError> {
+    fn decode_ldxhs() -> Result<()> {
         assert_eq!(
             decode(0x55293f69)?,
             I::Ldxhs(ShortInstruction::new(true, 5, 4, SS::UImm13(0x1f69)))
@@ -301,7 +302,7 @@ mod test {
     }
 
     #[test]
-    fn decode_ldrhs() -> Result<(), DecodeError> {
+    fn decode_ldrhs() -> Result<()> {
         assert_eq!(
             decode(0x572b3f69)?,
             I::Ldrhs(LongInstruction::new(true, 5, 0x33f69))
@@ -310,7 +311,7 @@ mod test {
     }
 
     #[test]
-    fn decode_ldxbu() -> Result<(), DecodeError> {
+    fn decode_ldxbu() -> Result<()> {
         assert_eq!(
             decode(0x59293f69)?,
             I::Ldxbu(ShortInstruction::new(true, 5, 4, SS::UImm13(0x1f69)))
@@ -319,7 +320,7 @@ mod test {
     }
 
     #[test]
-    fn decode_ldrbu() -> Result<(), DecodeError> {
+    fn decode_ldrbu() -> Result<()> {
         assert_eq!(
             decode(0x5b2b3f69)?,
             I::Ldrbu(LongInstruction::new(true, 5, 0x33f69))
@@ -328,7 +329,7 @@ mod test {
     }
 
     #[test]
-    fn decode_ldxbs() -> Result<(), DecodeError> {
+    fn decode_ldxbs() -> Result<()> {
         assert_eq!(
             decode(0x5d293f69)?,
             I::Ldxbs(ShortInstruction::new(true, 5, 4, SS::UImm13(0x1f69)))
@@ -337,7 +338,7 @@ mod test {
     }
 
     #[test]
-    fn decode_ldrbs() -> Result<(), DecodeError> {
+    fn decode_ldrbs() -> Result<()> {
         assert_eq!(
             decode(0x5f2b3f69)?,
             I::Ldrbs(LongInstruction::new(true, 5, 0x33f69))
@@ -348,7 +349,7 @@ mod test {
     // Store instructions.
 
     #[test]
-    fn decode_stxw() -> Result<(), DecodeError> {
+    fn decode_stxw() -> Result<()> {
         assert_eq!(
             decode(0x6d293f69)?,
             I::Stxw(ShortInstruction::new(true, 5, 4, SS::UImm13(0x1f69)))
@@ -357,7 +358,7 @@ mod test {
     }
 
     #[test]
-    fn decode_Strw() -> Result<(), DecodeError> {
+    fn decode_Strw() -> Result<()> {
         assert_eq!(
             decode(0x6f2b3f69)?,
             I::Strw(LongInstruction::new(true, 5, 0x33f69))
@@ -366,7 +367,7 @@ mod test {
     }
 
     #[test]
-    fn decode_stxh() -> Result<(), DecodeError> {
+    fn decode_stxh() -> Result<()> {
         assert_eq!(
             decode(0x75293f69)?,
             I::Stxh(ShortInstruction::new(true, 5, 4, SS::UImm13(0x1f69)))
@@ -375,7 +376,7 @@ mod test {
     }
 
     #[test]
-    fn decode_Strh() -> Result<(), DecodeError> {
+    fn decode_Strh() -> Result<()> {
         assert_eq!(
             decode(0x772b3f69)?,
             I::Strh(LongInstruction::new(true, 5, 0x33f69))
@@ -384,7 +385,7 @@ mod test {
     }
 
     #[test]
-    fn decode_stxb() -> Result<(), DecodeError> {
+    fn decode_stxb() -> Result<()> {
         assert_eq!(
             decode(0x7d293f69)?,
             I::Stxb(ShortInstruction::new(true, 5, 4, SS::UImm13(0x1f69)))
@@ -393,7 +394,7 @@ mod test {
     }
 
     #[test]
-    fn decode_Strb() -> Result<(), DecodeError> {
+    fn decode_Strb() -> Result<()> {
         assert_eq!(
             decode(0x7f2b3f69)?,
             I::Strb(LongInstruction::new(true, 5, 0x33f69))

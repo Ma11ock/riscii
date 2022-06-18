@@ -23,10 +23,11 @@ use std::env;
 use std::fmt;
 use std::fs;
 use std::path::Path;
-use util;
-use util::concat_paths;
+use util::{concat_paths, get_home_nofail, Result};
 
-use self::serde_derive::{Deserialize, Serialize};
+use berr;
+
+use self::serde_derive::Deserialize;
 
 /// Configuration of the emulator.
 #[derive(Deserialize)]
@@ -55,8 +56,8 @@ pub struct Config {
 
 impl Config {
     /// Create a new configuration object (with default settings) on success and a string on error.
-    pub fn new() -> Result<Config, String> {
-        let home_dir = util::get_home_nofail();
+    pub fn new() -> Result<Config> {
+        let home_dir = get_home_nofail();
         // Find a configuration path specified on the command line.
         let config_path = match env::var("XDG_CONFIG_HOME") {
             Ok(v) => format!("{}", v),
@@ -77,7 +78,7 @@ impl Config {
     }
 
     /// Create an initialized configuration object on success and a string on error.
-    pub fn init() -> Result<Config, String> {
+    pub fn init() -> Result<Config> {
         let mut config = Self::new()?;
         let args: Vec<String> = env::args().collect();
         // Look for custom config file location first. Read it, then override with cmd args.
@@ -96,17 +97,17 @@ impl Config {
     /// Read the user's configuration file and update configuration state
     /// (default ~/.config/riscii/config.toml). Return void on success and a
     /// string on error.
-    fn read_config_file(&mut self) -> Result<(), String> {
+    fn read_config_file(&mut self) -> Result<()> {
         // TODO do not exit if config.toml does not exist
         // TODO get ~ in paths to expand
         // Keep the data we want to survive the assignment.
         let config_file_path = self.config_file_path.clone();
         *self = match toml::from_str(&match fs::read_to_string(Path::new(&config_file_path)) {
-            Err(e) => return Err(format!("Could not read {}, {}", config_file_path, e)),
+            Err(e) => return berr!(format!("Could not read {}, {}", config_file_path, e)),
             Ok(r) => r,
         }) {
             Err(e) => {
-                return Err(format!(
+                return berr!(format!(
                     "Could not parse config file {}, {}",
                     config_file_path, e
                 ))
@@ -123,7 +124,7 @@ impl Config {
     /// success and string on error.
     /// # Arguments
     /// * `args` - CMD argument vector.
-    fn find_cmd_config_path(&self, args: &Vec<String>) -> Result<Option<String>, String> {
+    fn find_cmd_config_path(&self, args: &Vec<String>) -> Result<Option<String>> {
         for (i, arg) in args.iter().enumerate() {
             match arg.as_str() {
                 "--config_path" => {
@@ -141,7 +142,7 @@ impl Config {
     /// and a string on error.
     /// # Arguments
     /// * `args` - CMD argument vector.
-    fn parse_cmd_args(&mut self, args: &Vec<String>) -> Result<(), String> {
+    fn parse_cmd_args(&mut self, args: &Vec<String>) -> Result<()> {
         let mut skips = 1i32;
         for (i, arg) in args.iter().enumerate() {
             if skips > 0 {
@@ -184,7 +185,7 @@ impl Config {
 --ncpu              Number of cores to emulate (default=1)
 "
                     );
-                    return Err(format!("Invalid command line argument: {}", arg));
+                    return berr!(format!("Invalid command line argument: {}", arg));
                 }
             }
         }
@@ -222,9 +223,9 @@ impl Config {
 /// * `args` - CMD argument vector.
 /// * `i` - Index of the current argument.
 /// * `what` - String describing the current argument (for error message).
-fn args_check_size(args: &Vec<String>, i: usize, what: &String) -> Result<(), String> {
+fn args_check_size(args: &Vec<String>, i: usize, what: &String) -> Result<()> {
     if i >= args.len() {
-        Err(format!(
+        berr!(format!(
             "Invalid command line argument: {} takes an argument.",
             what
         ))
@@ -239,11 +240,7 @@ fn args_check_size(args: &Vec<String>, i: usize, what: &String) -> Result<(), St
 /// * `args` - CMD argument vector.
 /// * `i` - Index of the current argument.
 /// * `what` - String describing the current argument (for error message).
-fn args_get_next_arg<'a>(
-    args: &'a Vec<String>,
-    i: usize,
-    what: &String,
-) -> Result<&'a String, String> {
+fn args_get_next_arg<'a>(args: &'a Vec<String>, i: usize, what: &String) -> Result<&'a String> {
     args_check_size(&args, i, &what)?;
     Ok(&args[i + 1])
 }
@@ -254,12 +251,12 @@ fn args_get_next_arg<'a>(
 /// * `args` - CMD argument vector.
 /// * `i` - Index of the current argument.
 /// * `what` - String describing the current argument (for error message).
-fn args_get_next_uint(args: &Vec<String>, i: usize, what: &String) -> Result<u32, String> {
+fn args_get_next_uint(args: &Vec<String>, i: usize, what: &String) -> Result<u32> {
     args_check_size(&args, i, &what)?;
     Ok(match args[i + 1].parse::<u32>() {
         core::result::Result::Ok(u) => u,
         core::result::Result::Err(e) => {
-            return Err(format!(
+            return berr!(format!(
                 "Invalid command line argument for {}: {}, err: {}.",
                 what,
                 args[i + 1],
@@ -301,7 +298,7 @@ fn default_ncpu() -> u32 {
 }
 
 fn default_cache() -> String {
-    let home_dir = util::get_home_nofail();
+    let home_dir = get_home_nofail();
 
     let cache_dir = ".cache/riscii".to_string();
     match env::var("XDG_CACHE_HOME") {

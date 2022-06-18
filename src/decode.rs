@@ -16,27 +16,60 @@
 extern crate core;
 
 use core::convert::TryInto;
+use std::error::Error;
 use std::fmt;
+use util::Result;
 
 use instruction::*;
+
+macro_rules! bdeii {
+    ( $( $loc:expr, $opcode:expr ),* ) => {
+        {
+            Err(Box::new($( DecodeError::InvalidInstruction { loc: $loc, opcode: $opcode } )*))
+        }
+    };
+}
+
+macro_rules! bdeij {
+    ( $( $code:expr ),* ) => {
+        {
+            Err(Box::new($( DecodeError::InvalidJumpCondition { code: $code } )*))
+        }
+    };
+}
+
+macro_rules! bdece {
+    ( $( $descr:expr ),* ) => {
+        {
+            Err(Box::new($( DecodeError::CodeError { descr: $descr } )*))
+        }
+    };
+}
 
 // Struct declarations.
 
 /// Opcode errors.
-#[derive(PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum DecodeError {
     /// Indicates an invalid instruction. The first u32 indicates which bits are invalid,
     /// the final u32 is the whole opcode.
-    InvalidInstruction(u32, u32),
-    InvalidJumpCondition,
+    InvalidInstruction {
+        loc: u32,
+        opcode: u32,
+    },
+    InvalidJumpCondition {
+        code: u32,
+    },
 
     /// Indicates some bug in this program with a string description.
-    CodeError(String),
+    CodeError {
+        descr: String,
+    },
 }
 
 // Public function declarations.
 
-pub fn decode(opcode: u32) -> Result<Instruction, DecodeError> {
+pub fn decode(opcode: u32) -> Result<Instruction> {
     type I = Instruction;
     // SCC flag (<24>).
     let scc = opcode & 0x1000000 != 0;
@@ -48,7 +81,7 @@ pub fn decode(opcode: u32) -> Result<Instruction, DecodeError> {
     let imm19 = opcode & 0x7FFFF;
     // Short source immediate-mode bottom 13 bits <12-0> or rs1 <4-0>.
     let short_source = if opcode & 0x2000 != 0 {
-        ShortSource::UImm13(opcode & 0x1fff)
+        ShortSource::Imm13(opcode & 0x1fff)
     } else {
         ShortSource::Reg((opcode & 0x1f) as u8)
     }; // TODO fix ambiguous sign problem.
@@ -62,28 +95,24 @@ pub fn decode(opcode: u32) -> Result<Instruction, DecodeError> {
     Ok(match op >> 4 {
         // Match the bottom four bytes of the opcode's prefix.
         0 => match bottom_nibble {
-            0 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
+            0 => return bdeii!(0xf, opcode),
             1 => I::Calli(ShortInstruction::new(scc, dest, rs1, short_source)),
             2 => I::GetPSW(ShortInstruction::new(scc, dest, rs1, short_source)),
             3 => I::GetLPC(ShortInstruction::new(scc, dest, rs1, short_source)),
             4 => I::PutPSW(ShortInstruction::new(scc, dest, rs1, short_source)),
-            5..=7 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
+            5..=7 => return bdeii!(0xf, opcode),
             8 => I::Callx(ShortInstruction::new(scc, dest, rs1, short_source)),
             9 => I::Callr(LongInstruction::new(scc, dest, imm19)),
-            10..=11 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
+            10..=11 => return bdeii!(0xf, opcode),
             12 => I::Jmpx(ShortConditional::new(scc, cond?, rs1, short_source)),
             13 => I::Jmpr(LongConditional::new(scc, cond?, imm19)),
             14 => I::Ret(ShortConditional::new(scc, cond?, rs1, short_source)),
             15 => I::Reti(ShortConditional::new(scc, cond?, rs1, short_source)),
             // Should never be reached.
-            _ => {
-                return Err(DecodeError::CodeError(String::from(
-                    "Match bottom four bytes of opcode prefix",
-                )))
-            }
+            _ => return bdece!(format!("Match bottom four bytes of opcode prefix")),
         },
         1 => match bottom_nibble {
-            0 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
+            0 => return bdeii!(0xf, opcode),
             1 => I::Sll(ShortInstruction::new(scc, dest, rs1, short_source)),
             2 => I::Sra(ShortInstruction::new(scc, dest, rs1, short_source)),
             3 => I::Srl(ShortInstruction::new(scc, dest, rs1, short_source)),
@@ -93,20 +122,16 @@ pub fn decode(opcode: u32) -> Result<Instruction, DecodeError> {
             7 => I::Xor(ShortInstruction::new(scc, dest, rs1, short_source)),
             8 => I::Add(ShortInstruction::new(scc, dest, rs1, short_source)),
             9 => I::Addc(ShortInstruction::new(scc, dest, rs1, short_source)),
-            10..=11 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
+            10..=11 => return bdeii!(0xf, opcode),
             12 => I::Sub(ShortInstruction::new(scc, dest, rs1, short_source)),
             13 => I::Subc(ShortInstruction::new(scc, dest, rs1, short_source)),
             14 => I::Subi(ShortInstruction::new(scc, dest, rs1, short_source)),
             15 => I::Subci(ShortInstruction::new(scc, dest, rs1, short_source)),
             // Should never be reached.
-            _ => {
-                return Err(DecodeError::CodeError(String::from(
-                    "Match bottom four bytes of opcode prefix",
-                )))
-            }
+            _ => return bdece!(format!("Match bottom four bytes of opcode prefix")),
         },
         2 => match bottom_nibble {
-            0..=5 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
+            0..=5 => return bdeii!(0xf, opcode),
             6 => I::Ldxw(ShortInstruction::new(scc, dest, rs1, short_source)),
             7 => I::Ldrw(LongInstruction::new(scc, dest, imm19)),
             8 => I::Ldxhu(ShortInstruction::new(scc, dest, rs1, short_source)),
@@ -118,39 +143,31 @@ pub fn decode(opcode: u32) -> Result<Instruction, DecodeError> {
             14 => I::Ldxbs(ShortInstruction::new(scc, dest, rs1, short_source)),
             15 => I::Ldrbs(LongInstruction::new(scc, dest, imm19)),
             // Should never be reached.
-            _ => {
-                return Err(DecodeError::CodeError(String::from(
-                    "Match bottom four bytes of opcode prefix",
-                )))
-            }
+            _ => return bdece!(format!("Match bottom four bytes of opcode prefix")),
         },
         3 => match bottom_nibble {
-            0..=5 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
+            0..=5 => return bdeii!(0xf, opcode),
             6 => I::Stxw(ShortInstruction::new(scc, dest, rs1, short_source)),
             7 => I::Strw(LongInstruction::new(scc, dest, imm19)),
-            8..=9 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
+            8..=9 => return bdeii!(0xf, opcode),
             10 => I::Stxh(ShortInstruction::new(scc, dest, rs1, short_source)),
             11 => I::Strh(LongInstruction::new(scc, dest, imm19)),
-            12..=13 => return Err(DecodeError::InvalidInstruction(0x0f, opcode)),
+            12..=13 => return bdeii!(0xf, opcode),
             14 => I::Stxb(ShortInstruction::new(scc, dest, rs1, short_source)),
             15 => I::Strb(LongInstruction::new(scc, dest, imm19)),
             // Should never be reached.
-            _ => {
-                return Err(DecodeError::CodeError(String::from(
-                    "Match bottom four bytes of opcode prefix",
-                )))
-            }
+            _ => return bdece!(format!("Match bottom four bytes of opcode prefix")),
         },
         // Top bit is 1, meaning an extension opcode.
         4..=8 => match opcode {
             // TODO
-            _ => return Err(DecodeError::CodeError(String::from("Not yet implemented!"))),
+            _ => return bdece!(format!("Not yet implemented!")),
         },
-        _ => return Err(DecodeError::InvalidInstruction(0x8, opcode)),
+        _ => return bdeii!(0x8, opcode),
     })
 }
 
-pub fn decode_file(file: &Vec<u8>, pos: usize) -> Result<(), DecodeError> {
+pub fn decode_file(file: &Vec<u8>, pos: usize) -> Result<()> {
     let result = 0usize;
 
     for i in (0..file.len()).step_by(4) {
@@ -164,20 +181,28 @@ pub fn decode_file(file: &Vec<u8>, pos: usize) -> Result<(), DecodeError> {
 
 impl fmt::Display for DecodeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::InvalidInstruction(i, op) => write!(f, "Invalid: 0x{:x}, opcode: 0x{:x}", i, op),
-            Self::InvalidJumpCondition => write!(f, "Invalid jump condition"),
-            Self::CodeError(s) => write!(f, "Error in RISC II emulator: {}", s),
-        }
+        write!(
+            f,
+            "Error in decoding instruction: {}",
+            match self {
+                Self::InvalidInstruction { loc: i, opcode: op } =>
+                    format!("Invalid bits: 0x{:x}, opcode: 0x{:x}", i, op),
+                Self::InvalidJumpCondition { code: code } =>
+                    format!("Invalid jump condition: {} (should be 0-15)", code),
+                Self::CodeError { descr: s } => format!("Error in RISC II emulator: {}", s),
+            }
+        )
     }
 }
+
+impl Error for DecodeError {}
 
 // Private functions.
 
 /// Get the RISC-II conditional type from a opcode<22-19>.
 /// opcode A RISC-II opcode.
 /// return RISC-II conditional, or DecodeError if 0.
-fn get_cond_from_opcode(opcode: u32) -> Result<Conditional, DecodeError> {
+fn get_cond_from_opcode(opcode: u32) -> Result<Conditional> {
     type C = Conditional;
     Ok(match (opcode & 0x780000) >> 19 {
         1 => C::Gt,
@@ -195,6 +220,6 @@ fn get_cond_from_opcode(opcode: u32) -> Result<Conditional, DecodeError> {
         13 => C::Nv,
         14 => C::V,
         15 => C::Alw,
-        _ => return Err(DecodeError::InvalidJumpCondition),
+        code => return bdeij!(code),
     })
 }

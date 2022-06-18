@@ -16,10 +16,13 @@
 // Struct definitions.
 
 use config::Config;
-use util::{check_hword_alignment, check_word_alignment, File};
+use std::convert::TryInto;
+use util::{check_hword_alignment, check_word_alignment, File, Result};
+
+use berr;
 
 /// The real memory of the RISC II emulator.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Memory(Vec<u8>);
 
 // Struct impls.
@@ -35,101 +38,112 @@ impl Memory {
         }
     }
 
+    pub fn from_size(size: u32) -> Self {
+        Self {
+            0: vec![0u8; size as usize],
+        }
+    }
+
     pub fn from_vec(memory: &Vec<u8>) -> Self {
         Self { 0: memory.clone() }
     }
 
-    pub fn write_to_file(&mut self, file: &mut File) -> Result<(), String> {
-        file.write_vec(&self.0)?;
-        Ok(())
+    pub fn write_to_file(&mut self, file: &mut File) -> Result<()> {
+        file.write_vec(&self.0)
     }
 
     pub fn write_buf(&mut self, addr: u32, buf: &[u8]) {
-        self[addr..buf.len()].copy_from_slice(buf);
+        self.0[addr as usize..buf.len()].copy_from_slice(buf);
     }
 
-    pub fn get_byte(&self, addr: u32) -> Result<u8, String> {
-        if addr >= self.len() {
-            Err(format!(
+    pub fn get_byte(&self, addr: u32) -> Result<u8> {
+        let addr = addr as usize;
+        if addr >= self.0.len() {
+            berr!(format!(
                 "Memory read: address 0x{:x} is out range (memory is of size 0x{:x})",
                 addr,
-                self.len()
+                self.0.len()
             ))
         } else {
             Ok(self.0[addr])
         }
     }
 
-    pub fn get_hword(&self, addr: u32) -> Result<u16, String> {
+    pub fn get_hword(&self, addr: u32) -> Result<u16> {
         check_hword_alignment(addr)?;
-        if addr >= self.len() {
-            Err(format!(
+        let addr = addr as usize;
+        if addr >= self.0.len() {
+            berr!(format!(
                 "Memory read: address 0x{:x} is out range (memory is of size 0x{:x})",
                 addr,
-                self.len()
+                self.0.len()
             ))
         } else {
-            Ok(u16::from_be_bytes(self.0[addr..addr + 1]))
+            Ok(u16::from_be_bytes(self.0[addr..addr + 1].try_into()?))
         }
     }
 
-    pub fn get_word(&self, addr: u32) -> Result<u32, String> {
+    pub fn get_word(&self, addr: u32) -> Result<u32> {
         check_word_alignment(addr)?;
-        if addr >= self.len() {
-            Err(format!(
+        let addr = addr as usize;
+        if addr >= self.0.len() {
+            berr!(format!(
                 "Memory read: address 0x{:x} is out range (memory is of size 0x{:x})",
                 addr,
-                self.len()
+                self.0.len()
             ))
         } else {
-            Ok(self.0[addr])
+            Ok(u32::from_be_bytes(self.0[addr..addr + 4].try_into()?))
         }
     }
 
-    pub fn set_word(&mut self, addr: u32, what: u32) -> Result<u32, String> {
-        check_word_alignment()?;
-        if addr >= self.len() - 4 {
-            Err(format!(
+    pub fn set_word(&mut self, addr: u32, what: u32) -> Result<u32> {
+        check_word_alignment(addr)?;
+        let addr = addr as usize;
+        if addr >= self.0.len() - 4 {
+            berr!(format!(
                 "Memory write: address 0x{:x} is out range (memory is of size 0x{:x})",
                 addr,
-                self.len()
+                self.0.len()
             ))
         } else {
             let what_bytes = if cfg!(target_endian = "little") {
-                u32::from_ne_bytes(what.swap_bytes())
+                u32::to_ne_bytes(what.swap_bytes())
             } else {
-                u32::from_ne_bytes(what)
+                u32::to_ne_bytes(what)
             };
-            self.0[addr..addr + 4].copy_from_slice(what_bytes);
+            self.0[addr..addr + 4].copy_from_slice(&what_bytes);
             Ok(what)
         }
     }
 
-    pub fn set_hword(&mut self, addr: u32, what: u16) -> Result<u32, String> {
-        check_word_alignment()?;
-        if addr >= self.len() - 2 {
-            Err(format!(
+    pub fn set_hword(&mut self, addr: u32, what: u16) -> Result<u16> {
+        check_word_alignment(addr)?;
+        let addr = addr as usize;
+        if addr >= self.0.len() - 2 {
+            berr!(format!(
                 "Memory write: address 0x{:x} is out range (memory is of size 0x{:x})",
                 addr,
-                self.len()
+                self.0.len()
             ))
         } else {
             let what_bytes = if cfg!(target_endian = "little") {
-                u16::from_ne_bytes(what.swap_bytes())
+                u16::to_ne_bytes(what.swap_bytes())
             } else {
-                u16::from_ne_bytes(what)
+                u16::to_ne_bytes(what)
             };
-            self.0[addr..addr + 2].copy_from_slice(what_bytes);
+            self.0[addr..addr + 2].copy_from_slice(&what_bytes);
             Ok(what)
         }
     }
 
-    pub fn set_byte(&mut self, addr: u32, what: u8) -> Result<u32, String> {
-        if addr >= self.len() {
-            Err(format!(
+    pub fn set_byte(&mut self, addr: u32, what: u8) -> Result<u8> {
+        let addr = addr as usize;
+        if addr >= self.0.len() {
+            berr!(format!(
                 "Memory write: address 0x{:x} is out range (memory is of size 0x{:x})",
                 addr,
-                self.len()
+                self.0.len()
             ))
         } else {
             self.0[addr] = what;
