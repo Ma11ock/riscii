@@ -49,7 +49,7 @@ macro_rules! bdece {
 // Struct declarations.
 
 /// Opcode errors.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone)]
 pub enum DecodeError {
     /// Indicates an invalid instruction. The first u32 indicates which bits are invalid,
     /// the final u32 is the whole opcode.
@@ -69,6 +69,12 @@ pub enum DecodeError {
 
 // Public function declarations.
 
+impl fmt::Debug for DecodeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
 pub fn decode(opcode: u32) -> Result<Instruction> {
     type I = Instruction;
     // SCC flag (<24>).
@@ -84,8 +90,8 @@ pub fn decode(opcode: u32) -> Result<Instruction> {
         ShortSource::Imm13(opcode & 0x1fff)
     } else {
         ShortSource::Reg((opcode & 0x1f) as u8)
-    }; // TODO fix ambiguous sign problem.
-       // The opcode itself.
+    };
+    // The opcode itself.
     let op = (opcode & 0xFE000000) >> 25;
 
     let cond = get_cond_from_opcode(opcode);
