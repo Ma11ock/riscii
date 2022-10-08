@@ -17,6 +17,11 @@
 use std::fmt;
 use std::fmt::LowerHex;
 
+pub const SCC_LOC: u32 = 0x1000000;
+pub const DEST_LOC: u32 = 0x00F80000;
+pub const RS1_LOC: u32 = 0x7c000;
+pub const IMM19_LOC: u32 = 0x7FFFF;
+
 /// Types of conditionals the RISC II supports.
 #[derive(PartialEq, Eq, Copy, Clone)]
 pub enum Conditional {
@@ -353,6 +358,13 @@ impl LowerHex for ShortSource {
 }
 
 impl LongInstruction {
+    pub fn encode(&self, opcode: u8) -> u32 {
+        let scc = if self.scc { SCC_LOC } else { 0 };
+        let dest = (self.dest as u32) << 19;
+        let imm19 = self.imm19;
+
+        ((opcode as u32) << 25) & scc & dest & imm19
+    }
     /// Create a new long instruction.
     /// # Arguments
     /// * `scc` - Should update CC's.
@@ -378,6 +390,12 @@ impl fmt::Display for LongInstruction {
 }
 
 impl LongConditional {
+    pub fn encode(&self, opcode: u8) -> u32 {
+        let scc = if self.scc { SCC_LOC } else { 0 };
+        let dest = (get_opdata_from_cond(self.dest) as u32) << 19;
+        let imm19 = self.imm19;
+        ((opcode as u32) << 25) & scc & dest & imm19
+    }
     /// Create a new long conditional instruction.
     /// # Arguments
     /// * `scc` - Should update CC's.
@@ -403,6 +421,17 @@ impl fmt::Display for LongConditional {
 }
 
 impl ShortInstruction {
+    pub fn encode(&self, opcode: u8) -> u32 {
+        let scc = if self.scc { SCC_LOC } else { 0 };
+        let dest = (self.dest as u32) << 19;
+        let rs1 = (self.rs1 as u32) << 14;
+        let ss = match self.short_source {
+            ShortSource::Reg(r) => r as u32,
+            ShortSource::Imm13(i) => i,
+        };
+
+        ((opcode as u32) << 25) & scc & dest & rs1 & ss
+    }
     /// Create a new long conditional instruction.
     /// # Arguments
     /// * `scc` - Should update CC's.
@@ -430,6 +459,17 @@ impl fmt::Display for ShortInstruction {
 }
 
 impl ShortConditional {
+    pub fn encode(&self, opcode: u8) -> u32 {
+        let scc = if self.scc { SCC_LOC } else { 0 };
+        let dest = (get_opdata_from_cond(self.dest) as u32) << 19;
+        let rs1 = (self.rs1 as u32) << 14;
+        let ss = match self.short_source {
+            ShortSource::Reg(r) => r as u32,
+            ShortSource::Imm13(i) => i,
+        };
+
+        ((opcode as u32) << 25) & scc & dest & rs1
+    }
     /// Create a new long conditional instruction.
     /// # Arguments
     /// * `scc` - Should update CC's.
@@ -476,4 +516,25 @@ impl fmt::Display for Conditional {
             Self::Alw => write!(f, "Always (constant 1)"),
         }
     }
+}
+
+fn get_opdata_from_cond(cond: Conditional) -> u8 {
+    type C = Conditional;
+    (match cond {
+        C::Gt => 1,
+        C::Le => 2,
+        C::Ge => 3,
+        C::Lt => 4,
+        C::Hi => 5,
+        C::Los => 6,
+        C::Lonc => 7,
+        C::Hisc => 8,
+        C::Pl => 9,
+        C::Mi => 10,
+        C::Ne => 11,
+        C::Eq => 12,
+        C::Nv => 13,
+        C::V => 14,
+        C::Alw => 15,
+    })
 }

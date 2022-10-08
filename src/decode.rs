@@ -75,16 +75,71 @@ impl fmt::Debug for DecodeError {
     }
 }
 
+pub fn encode(inst: Instruction) -> u32 {
+    type I = Instruction;
+    match inst {
+        I::Calli(s) => s.encode(0b0000001),
+        I::GetPSW(s) => s.encode(0b0000010),
+        I::PutPSW(s) => s.encode(0b0000100),
+        I::GetLPC(s) => s.encode(0b0000011),
+        I::Callx(s) => s.encode(0b0000100),
+        I::Sll(s) => s.encode(0b0010001),
+        I::Srl(s) => s.encode(0b0010011),
+        I::Sra(s) => s.encode(0b0010010),
+        I::Or(s) => s.encode(0b0010110),
+        I::And(s) => s.encode(0b0010101),
+        I::Xor(s) => s.encode(0b0010111),
+        I::Add(s) => s.encode(0b0011000),
+        I::Addc(s) => s.encode(0b0011001),
+        I::Sub(s) => s.encode(0b0011100),
+        I::Subc(s) => s.encode(0b0011101),
+        I::Subi(s) => s.encode(0b0011110),
+        I::Subci(s) => s.encode(0b0011111),
+        I::Ldxw(s) => s.encode(0b0100110),
+        I::Ldxhu(s) => s.encode(0b0101000),
+        I::Ldxhs(s) => s.encode(0b0101010),
+        I::Ldxbu(s) => s.encode(0b0101100),
+        I::Ldxbs(s) => s.encode(0b0101110),
+        I::Stxw(s) => s.encode(0b0110110),
+        I::Stxh(s) => s.encode(0b0111010),
+        I::Stxb(s) => s.encode(0b0111011),
+        I::Jmpx(s) => s.encode(0b0001100),
+        I::Ret(s) => s.encode(0b0001110),
+        I::Reti(s) => s.encode(0b0001111),
+
+        I::Jmpr(l) => l.encode(0b0001101),
+        I::Callr(l) => l.encode(0b0001001),
+        I::Ldhi(l) => l.encode(0b0010100),
+        I::Ldrw(l) => l.encode(0b0100111),
+        I::Ldrhu(l) => l.encode(0b0101001),
+        I::Ldrhs(l) => l.encode(0b0101011),
+        I::Ldrbu(l) => l.encode(0b0101101),
+        I::Ldrbs(l) => l.encode(0b0101111),
+        I::Strw(l) => l.encode(0b0110111),
+        I::Strh(l) => l.encode(0b0111011),
+        I::Strb(l) => l.encode(0b0111111),
+    }
+}
+
+pub fn noop() -> u32 {
+    encode(Instruction::And(ShortInstruction::new(
+        false,
+        0,
+        0,
+        ShortSource::Imm13(0),
+    )))
+}
+
 pub fn decode(opcode: u32) -> Result<Instruction> {
     type I = Instruction;
     // SCC flag (<24>).
-    let scc = opcode & 0x1000000 != 0;
+    let scc = opcode & SCC_LOC != 0;
     // Destination bits (<23-19>).
-    let dest = ((opcode & 0x00F80000) >> 19) as u8;
+    let dest = ((opcode & DEST_LOC) >> 19) as u8;
     // Short-immediate RS1 value (<18-14>).
-    let rs1 = ((opcode & 0x7c000) >> 14) as u8;
+    let rs1 = ((opcode & RS1_LOC) >> 14) as u8;
     // Immediate-mode bottom 19 bits <18-0>.
-    let imm19 = opcode & 0x7FFFF;
+    let imm19 = opcode & IMM19_LOC;
     // Short source immediate-mode bottom 13 bits <12-0> or rs1 <4-0>.
     let short_source = if opcode & 0x2000 != 0 {
         ShortSource::Imm13(opcode & 0x1fff)

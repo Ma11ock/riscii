@@ -49,6 +49,7 @@ pub const SIZEOF_INSTRUCTION: u32 = 4;
 /// A RISC II 32bit register.
 type Register = u32;
 
+// TODO maybe convert this into a u16?
 /// PSW. Contains internal state that is usually opaque to the system.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct ProcessorStatusWord {
@@ -77,14 +78,14 @@ pub struct ProcessorStatusWord {
 pub struct RegisterFile {
     /// Next program counter, holds the address of the instruction being
     /// fetched for the next cycle.
-    nxtpc: Register,
+    pub nxtpc: Register,
     /// Program counter, holds the address of current instruction being
     /// executed.
-    pc: Register,
+    pub pc: Register,
     /// The lastpc, holds the address of the last executed instruction
     /// (or last attempted to be executed). When running an interrupt `lstpc`
     /// holds the address of the instruction that was aborted.
-    lstpc: Register,
+    pub lstpc: Register,
     /// Global registers.
     globals: [Register; NUM_GLOBALS],
     /// Register window stack.

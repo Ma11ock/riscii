@@ -16,6 +16,7 @@
 
 use config::Config;
 use cpu::{ProcessorStatusWord, RegisterFile};
+use decode::noop;
 use memory::Memory;
 use std::fmt;
 use util::Result;
@@ -29,6 +30,10 @@ pub struct System {
     psw: ProcessorStatusWord,
     /// Memory state.
     mem: Memory,
+    /// Temporary latch for destination register.
+    tmp_latch: u32,
+    /// Next instruction.
+    next_instruction: u32,
 }
 
 // Impls.
@@ -43,6 +48,8 @@ impl System {
             regs: RegisterFile::new(),
             psw: ProcessorStatusWord::new(),
             mem: Memory::new(config),
+            tmp_latch: 0,
+            next_instruction: noop(),
         })
     }
 
@@ -108,12 +115,30 @@ impl System {
             regs: self.regs,
             psw: self.psw,
             mem: Memory::from_size(0),
+            next_instruction: self.next_instruction,
+            tmp_latch: self.tmp_latch,
         }
     }
 
     pub fn get_mem_ref(&mut self) -> &mut Memory {
         &mut self.mem
     }
+
+    /// Run for a single clock cycle.
+    pub fn step(&mut self) {
+        self.fetch();
+        self.execute();
+        self.commit();
+    }
+
+    fn fetch(&mut self) -> Result<()> {
+        self.next_instruction = self.mem.get_word(self.regs.nxtpc)?;
+        Ok(())
+    }
+
+    fn execute(&mut self) {}
+
+    fn commit(&mut self) {}
 }
 
 impl fmt::Display for System {
