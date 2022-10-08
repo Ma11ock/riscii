@@ -13,5 +13,6 @@ overflow-checks = false
 toml = "0.5.9"
 serde = "1.0.137"
 serde_derive = "1.0.137"
+assert_hex = "0.2.2"
 [dependencies.sdl2]
 version = "0.35"

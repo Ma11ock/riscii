@@ -21,6 +21,13 @@ pub const SCC_LOC: u32 = 0x1000000;
 pub const DEST_LOC: u32 = 0x00F80000;
 pub const RS1_LOC: u32 = 0x7c000;
 pub const IMM19_LOC: u32 = 0x7FFFF;
+pub const SHORT_SOURCE_TYPE_LOC: u32 = 0x2000;
+
+// Public functions.
+
+pub fn noop() -> u32 {
+    Instruction::And(ShortInstruction::new(false, 0, 0, ShortSource::Imm13(0))).encode()
+}
 
 /// Types of conditionals the RISC II supports.
 #[derive(PartialEq, Eq, Copy, Clone)]
@@ -302,6 +309,54 @@ pub enum Instruction {
 
 // Impls.
 
+impl Instruction {
+    pub fn encode(&self) -> u32 {
+        type I = Instruction;
+        match *self {
+            I::Calli(s) => s.encode(0b0000001),
+            I::GetPSW(s) => s.encode(0b0000010),
+            I::PutPSW(s) => s.encode(0b0000100),
+            I::GetLPC(s) => s.encode(0b0000011),
+            I::Callx(s) => s.encode(0b0001000),
+            I::Sll(s) => s.encode(0b0010001),
+            I::Srl(s) => s.encode(0b0010011),
+            I::Sra(s) => s.encode(0b0010010),
+            I::Or(s) => s.encode(0b0010110),
+            I::And(s) => s.encode(0b0010101),
+            I::Xor(s) => s.encode(0b0010111),
+            I::Add(s) => s.encode(0b0011000),
+            I::Addc(s) => s.encode(0b0011001),
+            I::Sub(s) => s.encode(0b0011100),
+            I::Subc(s) => s.encode(0b0011101),
+            I::Subi(s) => s.encode(0b0011110),
+            I::Subci(s) => s.encode(0b0011111),
+            I::Ldxw(s) => s.encode(0b0100110),
+            I::Ldxhu(s) => s.encode(0b0101000),
+            I::Ldxhs(s) => s.encode(0b0101010),
+            I::Ldxbu(s) => s.encode(0b0101100),
+            I::Ldxbs(s) => s.encode(0b0101110),
+            I::Stxw(s) => s.encode(0b0110110),
+            I::Stxh(s) => s.encode(0b0111010),
+            I::Stxb(s) => s.encode(0b0111110),
+            I::Jmpx(s) => s.encode(0b0001100),
+            I::Ret(s) => s.encode(0b0001110),
+            I::Reti(s) => s.encode(0b0001111),
+
+            I::Jmpr(l) => l.encode(0b0001101),
+            I::Callr(l) => l.encode(0b0001001),
+            I::Ldhi(l) => l.encode(0b0010100),
+            I::Ldrw(l) => l.encode(0b0100111),
+            I::Ldrhu(l) => l.encode(0b0101001),
+            I::Ldrhs(l) => l.encode(0b0101011),
+            I::Ldrbu(l) => l.encode(0b0101101),
+            I::Ldrbs(l) => l.encode(0b0101111),
+            I::Strw(l) => l.encode(0b0110111),
+            I::Strh(l) => l.encode(0b0111011),
+            I::Strb(l) => l.encode(0b0111111),
+        }
+    }
+}
+
 impl ShortSource {
     /// Create a new short source.
     /// # Arguments
@@ -363,7 +418,7 @@ impl LongInstruction {
         let dest = (self.dest as u32) << 19;
         let imm19 = self.imm19;
 
-        ((opcode as u32) << 25) & scc & dest & imm19
+        ((opcode as u32) << 25) | scc | dest | imm19
     }
     /// Create a new long instruction.
     /// # Arguments
@@ -394,7 +449,8 @@ impl LongConditional {
         let scc = if self.scc { SCC_LOC } else { 0 };
         let dest = (get_opdata_from_cond(self.dest) as u32) << 19;
         let imm19 = self.imm19;
-        ((opcode as u32) << 25) & scc & dest & imm19
+        println!("Lol 0x{:x}, 0x{:x}", dest, imm19);
+        ((opcode as u32) << 25) | scc | dest | imm19
     }
     /// Create a new long conditional instruction.
     /// # Arguments
@@ -425,12 +481,11 @@ impl ShortInstruction {
         let scc = if self.scc { SCC_LOC } else { 0 };
         let dest = (self.dest as u32) << 19;
         let rs1 = (self.rs1 as u32) << 14;
-        let ss = match self.short_source {
-            ShortSource::Reg(r) => r as u32,
-            ShortSource::Imm13(i) => i,
+        let (ss, ss_bit) = match self.short_source {
+            ShortSource::Reg(r) => (r as u32, 0),
+            ShortSource::Imm13(i) => (i, SHORT_SOURCE_TYPE_LOC),
         };
-
-        ((opcode as u32) << 25) & scc & dest & rs1 & ss
+        ((opcode as u32) << 25) | scc | dest | rs1 | ss_bit | ss
     }
     /// Create a new long conditional instruction.
     /// # Arguments
@@ -463,12 +518,11 @@ impl ShortConditional {
         let scc = if self.scc { SCC_LOC } else { 0 };
         let dest = (get_opdata_from_cond(self.dest) as u32) << 19;
         let rs1 = (self.rs1 as u32) << 14;
-        let ss = match self.short_source {
-            ShortSource::Reg(r) => r as u32,
-            ShortSource::Imm13(i) => i,
+        let (ss, ss_bit) = match self.short_source {
+            ShortSource::Reg(r) => (r as u32, 0),
+            ShortSource::Imm13(i) => (i, SHORT_SOURCE_TYPE_LOC),
         };
-
-        ((opcode as u32) << 25) & scc & dest & rs1
+        ((opcode as u32) << 25) | scc | dest | rs1 | ss_bit | ss
     }
     /// Create a new long conditional instruction.
     /// # Arguments
@@ -520,7 +574,7 @@ impl fmt::Display for Conditional {
 
 fn get_opdata_from_cond(cond: Conditional) -> u8 {
     type C = Conditional;
-    (match cond {
+    match cond {
         C::Gt => 1,
         C::Le => 2,
         C::Ge => 3,
@@ -536,5 +590,5 @@ fn get_opdata_from_cond(cond: Conditional) -> u8 {
         C::Nv => 13,
         C::V => 14,
         C::Alw => 15,
-    })
+    }
 }

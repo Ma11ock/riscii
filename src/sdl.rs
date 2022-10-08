@@ -30,7 +30,6 @@ use sdl2::VideoSubsystem;
 use util::Result;
 
 // Struct definitions.
-
 /// SDL context structs.
 pub struct Context {
     /// SDL context.
@@ -42,7 +41,6 @@ pub struct Context {
     /// Event queue.
     event_pump: EventPump,
 }
-
 // Struct impls.
 
 impl Context {

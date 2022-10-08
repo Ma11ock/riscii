@@ -16,7 +16,7 @@
 
 use config::Config;
 use cpu::{ProcessorStatusWord, RegisterFile};
-use decode::noop;
+use instruction::noop;
 use memory::Memory;
 use std::fmt;
 use util::Result;

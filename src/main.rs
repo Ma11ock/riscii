@@ -13,21 +13,26 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#[macro_use]
+extern crate assert_hex;
 extern crate core;
 extern crate sdl2;
 #[cfg(test)]
 mod decode_test;
 #[cfg(test)]
+mod encode_test;
+#[cfg(test)]
 mod main_test;
 
-mod config;
-mod cpu;
-mod decode;
-mod instruction;
-mod memory;
-mod sdl;
-mod system;
-mod util;
+// Modules declared as pub to shut up rust-analyzer about dead code.
+pub mod config;
+pub mod cpu;
+pub mod decode;
+pub mod instruction;
+pub mod memory;
+pub mod sdl;
+pub mod system;
+pub mod util;
 
 use decode::decode_file;
 use std::fs;
