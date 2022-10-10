@@ -1,4 +1,4 @@
-// RISC II emulator window and I/O.
+// RISC II emulator SDL layer.
 // (C) Ryan Jeffrey <ryan@ryanmj.xyz>, 2022
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -27,30 +27,32 @@ use sdl2::video::Window;
 use sdl2::EventPump;
 use sdl2::Sdl;
 use sdl2::VideoSubsystem;
+use system::System;
 use util::Result;
 
 // Struct definitions.
+
 /// SDL context structs.
 pub struct Context {
     /// SDL context.
-    context: Sdl,
+    pub context: Sdl,
     /// Video context.
-    video_system: VideoSubsystem,
+    pub video_system: VideoSubsystem,
     /// Window canvas.
-    canvas: Canvas<Window>,
+    pub canvas: Canvas<Window>,
     /// Event queue.
-    event_pump: EventPump,
+    pub event_pump: EventPump,
 }
 // Struct impls.
 
 impl Context {
     /// Create a new SDL window/context. Return context on success and a
     /// string on error.
-    pub fn new(config: &Config) -> Result<Self> {
+    pub fn new(width: u32, height: u32, name: String) -> Result<Self> {
         let sdl_context = sdl2::init()?;
         let video_subsystem = sdl_context.video()?;
         let window = video_subsystem
-            .window("RISC II", config.get_win_width(), config.get_win_height())
+            .window(name.as_str(), width, height)
             .position_centered()
             .opengl()
             .build()

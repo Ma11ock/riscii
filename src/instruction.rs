@@ -366,7 +366,7 @@ impl ShortSource {
     pub fn new(opcode: u32, signed: bool) -> Self {
         // Short source immediate-mode bottom 13 bits <12-0> or rs1 <4-0>.
         if opcode & 0x2000 != 0 {
-            let mut tmp = Self::Imm13(opcode & 0x1fff);
+            let tmp = Self::Imm13(opcode & 0x1fff);
             if signed {
                 tmp.uimm_to_simm()
             } else {
@@ -389,7 +389,7 @@ impl ShortSource {
                     Self::Imm13(u)
                 }
             }
-            Self::Reg(r) => *self,
+            Self::Reg(_) => *self,
         }
     }
 }

@@ -33,6 +33,7 @@ pub mod memory;
 pub mod sdl;
 pub mod system;
 pub mod util;
+pub mod windows;
 
 use decode::decode_file;
 use std::fs;
@@ -41,14 +42,13 @@ use config::Config;
 use std::boxed::Box;
 use std::error::Error;
 use system::System;
-
+use windows::{DebugWindow, Drawable, MainWindow};
 // Struct/enum declarations.
 
 fn main() -> Result<(), Box<dyn Error>> {
     let config = Config::init()?;
-    let context = sdl::Context::new(&config)?;
 
-    let system = System::new(&config);
+    let system = System::new(&config)?;
     println!(
         "Running emulator with the following configuration: \n{}\n",
         config
@@ -56,5 +56,30 @@ fn main() -> Result<(), Box<dyn Error>> {
     //println!("Opening binary file {}.", path);
     //let program = fs::read(path)?;
 
+    let mut debug_window = Some(DebugWindow::new(&config, &system)?);
+    let mut main_window = MainWindow::new(&config, &system)?;
+
+    'running: loop {
+        if main_window.handle_events() {
+            break 'running;
+        }
+        debug_window = if let Some(mut win) = debug_window {
+            if win.handle_events() {
+                None
+            } else {
+                Some(win)
+            }
+        } else {
+            None
+        };
+
+        debug_window = if let Some(mut win) = debug_window {
+            win.draw();
+            Some(win)
+        } else {
+            None
+        };
+        main_window.draw();
+    }
     Ok(())
 }

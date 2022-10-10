@@ -50,6 +50,12 @@ pub struct Config {
     /// Height of the window.
     #[serde(default = "default_height")]
     win_height: u32,
+    /// Width of the window.
+    #[serde(default = "default_width")]
+    debug_win_width: u32,
+    /// Height of the window.
+    #[serde(default = "default_height")]
+    debug_win_height: u32,
 }
 
 // Struct impls.
@@ -74,6 +80,8 @@ impl Config {
             cache_path: String::new(),
             win_width: 0,
             win_height: 0,
+            debug_win_width: 0,
+            debug_win_height: 0,
         })
     }
 
@@ -193,6 +201,16 @@ impl Config {
     }
 
     // Getters.
+
+    /// Get the user's configured window width.
+    pub fn get_debug_win_width(&self) -> u32 {
+        self.debug_win_width
+    }
+
+    /// Get the user's configured window height.
+    pub fn get_debug_win_height(&self) -> u32 {
+        self.debug_win_height
+    }
 
     /// Get the user's configured window width.
     pub fn get_win_width(&self) -> u32 {
