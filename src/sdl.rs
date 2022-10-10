@@ -32,43 +32,66 @@ use util::Result;
 
 // Struct definitions.
 
-/// SDL context structs.
+pub trait Drawable {
+    fn draw(&mut self, context: &mut Context);
+    fn handle_events(&mut self, context: &mut Context) -> bool;
+}
+
 pub struct Context {
     /// SDL context.
     pub context: Sdl,
     /// Video context.
     pub video_system: VideoSubsystem,
-    /// Window canvas.
-    pub canvas: Canvas<Window>,
     /// Event queue.
     pub event_pump: EventPump,
+}
+
+/// SDL context structs.
+pub struct Pane {
+    /// Window canvas.
+    pub canvas: Canvas<Window>,
+    /// Id.
+    window_id: u32,
 }
 // Struct impls.
 
 impl Context {
+    pub fn new() -> Result<Self> {
+        let sdl = sdl2::init()?;
+        let event_pump = sdl.event_pump()?;
+        Ok(Self {
+            video_system: sdl.video()?,
+            context: sdl,
+            event_pump: event_pump,
+        })
+    }
+}
+
+impl Pane {
     /// Create a new SDL window/context. Return context on success and a
     /// string on error.
-    pub fn new(width: u32, height: u32, name: String) -> Result<Self> {
-        let sdl_context = sdl2::init()?;
-        let video_subsystem = sdl_context.video()?;
-        let window = video_subsystem
+    pub fn new(width: u32, height: u32, name: String, context: &mut Context) -> Result<Self> {
+        let window = context
+            .video_system
             .window(name.as_str(), width, height)
             .position_centered()
             .opengl()
             .build()
             .map_err(|e| e.to_string())?;
 
+        let id = window.id();
         let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
         canvas.set_draw_color(Color::RGB(0, 0, 0));
         canvas.clear();
         canvas.present();
-        let event_pump = sdl_context.event_pump()?;
 
         Ok(Self {
-            context: sdl_context,
-            video_system: video_subsystem,
             canvas: canvas,
-            event_pump: event_pump,
+            window_id: id,
         })
+    }
+
+    pub fn get_id(&self) -> u32 {
+        self.window_id
     }
 }

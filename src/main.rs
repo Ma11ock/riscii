@@ -27,6 +27,7 @@ mod main_test;
 // Modules declared as pub to shut up rust-analyzer about dead code.
 pub mod config;
 pub mod cpu;
+pub mod debug_window;
 pub mod decode;
 pub mod instruction;
 pub mod memory;
@@ -35,14 +36,13 @@ pub mod system;
 pub mod util;
 pub mod windows;
 
-use decode::decode_file;
-use std::fs;
-
 use config::Config;
+use debug_window::DebugWindow;
+use sdl::{Context, Drawable};
 use std::boxed::Box;
 use std::error::Error;
 use system::System;
-use windows::{DebugWindow, Drawable, MainWindow};
+use windows::MainWindow;
 // Struct/enum declarations.
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -55,16 +55,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     );
     //println!("Opening binary file {}.", path);
     //let program = fs::read(path)?;
+    let mut sdl_context = Context::new()?;
 
-    let mut debug_window = Some(DebugWindow::new(&config, &system)?);
-    let mut main_window = MainWindow::new(&config, &system)?;
+    let mut main_window = MainWindow::new(&config, &system, &mut sdl_context)?;
+    let mut debug_window = Some(DebugWindow::new(&config, &system, &mut sdl_context)?);
 
     'running: loop {
-        if main_window.handle_events() {
+        if main_window.handle_events(&mut sdl_context) {
             break 'running;
         }
         debug_window = if let Some(mut win) = debug_window {
-            if win.handle_events() {
+            if win.handle_events(&mut sdl_context) {
                 None
             } else {
                 Some(win)
@@ -74,12 +75,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         };
 
         debug_window = if let Some(mut win) = debug_window {
-            win.draw();
+            win.draw(&mut sdl_context);
             Some(win)
         } else {
             None
         };
-        main_window.draw();
+        main_window.draw(&mut sdl_context);
     }
     Ok(())
 }
