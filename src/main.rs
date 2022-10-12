@@ -39,11 +39,84 @@ pub mod windows;
 use config::Config;
 use debug_window::DebugWindow;
 use sdl::{Context, Drawable};
+use sdl2::event::{Event, WindowEvent};
+use sdl2::keyboard::Keycode;
 use std::boxed::Box;
 use std::error::Error;
 use system::System;
 use windows::MainWindow;
+
 // Struct/enum declarations.
+
+enum GlobalAction {
+    None,
+    QuitProgram,
+    CloseDebugWindow,
+}
+
+fn handle_events(
+    context: &mut Context,
+    win: &mut MainWindow,
+    debug_window: &mut Option<DebugWindow>,
+) -> GlobalAction {
+    let event_pump = &mut context.event_pump;
+    let mut result = GlobalAction::None;
+    let main_win_id = win.get_window_id();
+    for event in event_pump.poll_iter() {
+        match event {
+            Event::Quit { .. } => {
+                return GlobalAction::QuitProgram;
+            }
+            Event::Window {
+                win_event: WindowEvent::Close,
+                window_id: id,
+                ..
+            } => {
+                if id == main_win_id {
+                    return GlobalAction::QuitProgram;
+                } else if let Some(dwin) = debug_window {
+                    if dwin.get_window_id() == id {
+                        result = GlobalAction::CloseDebugWindow;
+                        continue;
+                    }
+                }
+                eprintln!("Close for window id {}, but it does not exist!", id);
+            }
+            Event::KeyDown {
+                keycode: Some(kc),
+                window_id: id,
+                ..
+            } => {
+                if id == main_win_id {
+                    win.handle_key_down(kc);
+                } else if let Some(dwin) = debug_window {
+                    if dwin.get_window_id() == id {
+                        dwin.handle_key_down(kc);
+                        continue;
+                    }
+                }
+                eprintln!("Keydown event for window id {}, but it does not exist!", id);
+            }
+            Event::KeyUp {
+                keycode: Some(kc),
+                window_id: id,
+                ..
+            } => {
+                if id == main_win_id {
+                    win.handle_key_up(kc);
+                } else if let Some(dwin) = debug_window {
+                    if dwin.get_window_id() == id {
+                        dwin.handle_key_up(kc);
+                        continue;
+                    }
+                }
+                eprintln!("Keyup event for window id {}, but it does not exist!", id);
+            }
+            _ => {}
+        }
+    }
+    return result;
+}
 
 fn main() -> Result<(), Box<dyn Error>> {
     let config = Config::init()?;
@@ -58,22 +131,22 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut sdl_context = Context::new()?;
 
     let mut main_window = MainWindow::new(&config, &system, &mut sdl_context)?;
-    let mut debug_window = Some(DebugWindow::new(&config, &system, &mut sdl_context)?);
+    let mut debug_window = if config.is_debug_mode() {
+        Some(DebugWindow::new(&config, &system, &mut sdl_context)?)
+    } else {
+        None
+    };
 
     'running: loop {
-        if main_window.handle_events(&mut sdl_context) {
-            break 'running;
-        }
-        debug_window = if let Some(mut win) = debug_window {
-            if win.handle_events(&mut sdl_context) {
-                None
-            } else {
-                Some(win)
+        match handle_events(&mut sdl_context, &mut main_window, &mut debug_window) {
+            GlobalAction::QuitProgram => {
+                break 'running;
             }
-        } else {
-            None
-        };
-
+            GlobalAction::CloseDebugWindow => {
+                debug_window = None;
+            }
+            _ => {}
+        }
         debug_window = if let Some(mut win) = debug_window {
             win.draw(&mut sdl_context);
             Some(win)

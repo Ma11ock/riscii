@@ -56,6 +56,9 @@ pub struct Config {
     /// Height of the window.
     #[serde(default = "default_height")]
     debug_win_height: u32,
+    /// True if in debug mode, false otherwise.
+    #[serde(default = "default_debug_mode")]
+    debug_mode: bool,
 }
 
 // Struct impls.
@@ -82,6 +85,7 @@ impl Config {
             win_height: 0,
             debug_win_width: 0,
             debug_win_height: 0,
+            debug_mode: false,
         })
     }
 
@@ -231,6 +235,11 @@ impl Config {
     pub fn get_ncpus(&self) -> u32 {
         self.ncpu
     }
+
+    /// Get the debug mode option.
+    pub fn is_debug_mode(&self) -> bool {
+        self.debug_mode
+    }
 }
 
 // Local functions.
@@ -331,4 +340,8 @@ fn default_width() -> u32 {
 
 fn default_height() -> u32 {
     900
+}
+
+fn default_debug_mode() -> bool {
+    true
 }

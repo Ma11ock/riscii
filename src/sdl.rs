@@ -18,7 +18,7 @@
 extern crate sdl2;
 
 use config::Config;
-use sdl2::event::Event;
+use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
@@ -34,7 +34,9 @@ use util::Result;
 
 pub trait Drawable {
     fn draw(&mut self, context: &mut Context);
-    fn handle_events(&mut self, context: &mut Context) -> bool;
+    fn handle_key_down(&mut self, kc: Keycode);
+    fn handle_key_up(&mut self, kc: Keycode);
+    fn get_window_id(&self) -> u32;
 }
 
 pub struct Context {

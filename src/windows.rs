@@ -18,6 +18,7 @@
 use config::Config;
 use sdl::{Context, Drawable, Pane};
 use sdl2::event::{Event, WindowEvent};
+use sdl2::keyboard::Keycode;
 use sdl2::pixels::*;
 use system::System;
 use util::Result;
@@ -34,39 +35,14 @@ impl<'a> Drawable for MainWindow<'a> {
     fn draw(&mut self, context: &mut Context) {
         self.pane.canvas.set_draw_color(Color::RGB(0, 0, 0));
         self.pane.canvas.clear();
-
         //
         self.pane.canvas.present();
     }
 
-    fn handle_events(&mut self, context: &mut Context) -> bool {
-        // TODO need to segregate events based off of windows ourself in main.
-        let event_pump = &mut context.event_pump;
-        let window_id = self.pane.get_id();
-        for event in event_pump.poll_iter() {
-            match event {
-                Event::Quit { .. } => {
-                    return true;
-                }
-                Event::Window {
-                    win_event: WindowEvent::Close,
-                    window_id: id,
-                    ..
-                } => {
-                    if id == window_id {
-                        return true;
-                    }
-                }
-                Event::KeyDown {
-                    keycode: Some(kc), ..
-                } => {}
-                Event::KeyUp {
-                    keycode: Some(kc), ..
-                } => {}
-                _ => {}
-            }
-        }
-        return false;
+    fn handle_key_down(&mut self, kc: Keycode) {}
+    fn handle_key_up(&mut self, kc: Keycode) {}
+    fn get_window_id(&self) -> u32 {
+        self.pane.get_id()
     }
 }
 
