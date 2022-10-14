@@ -34,7 +34,7 @@ pub mod memory;
 pub mod sdl;
 pub mod system;
 pub mod util;
-pub mod windows;
+pub mod window;
 
 use config::Config;
 use debug_window::DebugWindow;
@@ -44,7 +44,7 @@ use sdl2::keyboard::Keycode;
 use std::boxed::Box;
 use std::error::Error;
 use system::System;
-use windows::MainWindow;
+use window::MainWindow;
 
 // Struct/enum declarations.
 

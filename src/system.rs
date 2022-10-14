@@ -15,13 +15,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use config::Config;
-use cpu::{ProcessorStatusWord, RegisterFile};
+use cpu::{ProcessorStatusWord, RegisterFile, SIZEOF_INSTRUCTION};
 use instruction::noop;
 use memory::Memory;
 use std::fmt;
 use util::Result;
 
-/// RISC II emulated system.
+use crate::cpu;
+
+/// RISC II emulated data path.
 #[derive(Debug, Clone)]
 pub struct System {
     /// RISC II register file.
@@ -31,9 +33,31 @@ pub struct System {
     /// Memory state.
     mem: Memory,
     /// Temporary latch for destination register.
-    tmp_latch: u32,
+    dst_latch: u32,
+    /// Source latch for the shifter and ALU.
+    src_latch: u32,
     /// Next instruction.
     next_instruction: u32,
+    /// Destination register address.
+    rd: u8,
+    /// Source register one.
+    ra: u8,
+    /// Source register two.
+    rb: u8,
+    /// Opcode register.
+    op: u8,
+    /// Immediate register.
+    imm: u32,
+    /// Next program counter, holds the address of the instruction being
+    /// fetched for the next cycle.
+    nxtpc: u32,
+    /// Program counter, holds the address of current instruction being
+    /// executed.
+    pc: u32,
+    /// The lastpc, holds the address of the last executed instruction
+    /// (or last attempted to be executed). When running an interrupt `lstpc`
+    /// holds the address of the instruction that was aborted.
+    lstpc: u32,
 }
 
 // Impls.
@@ -48,9 +72,30 @@ impl System {
             regs: RegisterFile::new(),
             psw: ProcessorStatusWord::new(),
             mem: Memory::new(config),
-            tmp_latch: 0,
+            src_latch: 0,
+            dst_latch: 0,
             next_instruction: noop(),
+            rd: 0,
+            ra: 0,
+            rb: 0,
+            op: 0,
+            imm: 0,
+            nxtpc: 0,
+            pc: 0,
+            lstpc: 0,
         })
+    }
+
+    fn increment_pcs(&mut self) {
+        self.lstpc = self.pc;
+        self.pc = self.nxtpc;
+        self.nxtpc += cpu::SIZEOF_INSTRUCTION;
+    }
+
+    fn branch_to(&mut self, address: u32) {
+        self.lstpc = self.pc;
+        self.pc = self.nxtpc;
+        self.nxtpc = address;
     }
 
     /// Get the 13 bit PSW value. PSW is the state of the system's special
@@ -66,15 +111,15 @@ impl System {
     /// [7-9]: SWP register mod 8.
     /// [10-12]: CWP register mod 8.
     pub fn get_psw_as_u32(&self) -> u32 {
-        self.psw.to_u32()
+        self.psw.get() as u32
     }
 
     pub fn call(&mut self, addr: u32) {
-        self.psw.push_reg_window();
+        self.psw.push();
     }
 
     pub fn ret(&mut self) {
-        self.psw.pop_reg_window();
+        self.psw.pop();
     }
 
     pub fn get_register_file(&mut self) -> &mut RegisterFile {
@@ -86,38 +131,23 @@ impl System {
     }
 
     pub fn get_last_pc(&self) -> u32 {
-        self.regs.get_last_pc()
+        self.lstpc
     }
 
     pub fn get_pc(&self) -> u32 {
-        self.regs.get_pc()
+        self.pc
     }
 
     pub fn get_next_pc(&self) -> u32 {
-        self.regs.get_next_pc()
-    }
-
-    pub fn integrate_system_changes(&mut self, other: &System) {
-        self.regs = other.regs;
-        self.psw = other.psw;
+        self.nxtpc
     }
 
     pub fn get_psw(&self) -> ProcessorStatusWord {
         self.psw
     }
 
-    pub fn set_psw(&mut self, psw: u32) {
-        self.psw = ProcessorStatusWord::from_u32(psw);
-    }
-
-    pub fn copy_no_mem(&self) -> Self {
-        System {
-            regs: self.regs,
-            psw: self.psw,
-            mem: Memory::from_size(0),
-            next_instruction: self.next_instruction,
-            tmp_latch: self.tmp_latch,
-        }
+    pub fn set_psw(&mut self, psw: u16) {
+        self.psw = ProcessorStatusWord::from_u16(psw);
     }
 
     pub fn get_mem_ref(&mut self) -> &mut Memory {
@@ -132,7 +162,7 @@ impl System {
     }
 
     fn fetch(&mut self) -> Result<()> {
-        self.next_instruction = self.mem.get_word(self.regs.nxtpc)?;
+        self.next_instruction = self.mem.get_word(self.nxtpc)?;
         Ok(())
     }
 
