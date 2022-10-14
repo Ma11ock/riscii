@@ -66,9 +66,6 @@ pub const CWP_LOC: u16 = 0x7 << 10;
 pub const PSW_LOC: u16 = 0x1fff;
 // Struct definitions.
 
-/// A RISC II 32bit register.
-type Register = u32;
-
 // TODO maybe convert this into a u16?
 /// PSW. Contains internal state that is usually opaque to the system.
 /// [12:10] -> Current window pointer (CWP).

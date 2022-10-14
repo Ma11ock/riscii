@@ -27,6 +27,7 @@ mod main_test;
 // Modules declared as pub to shut up rust-analyzer about dead code.
 pub mod config;
 pub mod cpu;
+pub mod data_path;
 pub mod debug_window;
 pub mod decode;
 pub mod instruction;

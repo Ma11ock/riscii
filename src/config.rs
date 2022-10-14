@@ -44,6 +44,9 @@ pub struct Config {
     /// Path to the system cache directory.
     #[serde(default = "default_cache")]
     cache_path: String,
+    /// The clock rate (in hertz).
+    #[serde(default = "default_clock_rate")]
+    clock_rate: u64,
     /// Width of the window.
     #[serde(default = "default_width")]
     win_width: u32,
@@ -80,6 +83,7 @@ impl Config {
                 &config_path,
                 &".config/riscii/config.toml".to_string(),
             )?,
+            clock_rate: 0,
             cache_path: String::new(),
             win_width: 0,
             win_height: 0,
@@ -344,4 +348,8 @@ fn default_height() -> u32 {
 
 fn default_debug_mode() -> bool {
     true
+}
+
+fn default_clock_rate() -> u64 {
+    5_000_000
 }
