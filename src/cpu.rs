@@ -84,6 +84,26 @@ pub struct ProcessorStatusWord(u16);
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct RegisterFile([u32; NUM_GLOBALS + NUM_WINDOW_REGISTERS]);
 
+/// CPU output pins to memory.
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct OutputPins {
+    /// 32 bit memory output port. For sending data to memory (address).
+    pub address: u32,
+    /// 32 bit memory output port. For sending data to memory (data).
+    pub data: u32,
+    /// If the current memory write is a word.
+    pub width_code_word: bool,
+    /// If the current memory write is a half word.
+    pub width_code_half: bool,
+    /// If the current memory operation is a write (true) or read (false).
+    pub read_write: bool,
+    /// If the system is currently in system mode.
+    pub system_mode: bool,
+    /// If the read/write  data is an instruction (1) or data (0). For writes,
+    /// it is always data (0).
+    pub instr_or_data_write: bool,
+}
+
 // Struct implementations.
 
 impl RegisterFile {
@@ -208,9 +228,10 @@ impl RegisterFile {
     ///                   [31-26] -> Ins
     /// Anything outside this [0-31] range is an invalid argument.
     /// # Arguments
-    /// * `which` - Which register. [0-31] are the only valid values.
-    /// * `psw` - Processor status object, contains window information.
-    pub fn write(&mut self, address: u32, value: u32, cwp: u8) {
+    /// * `address` - Which register. [0-31] are the only valid values.
+    /// * `value` - Value to write into the register.
+    /// * `cwp` - Current window pointer. Used to determine the real address of the register.
+    pub fn write(&mut self, address: u8, value: u32, cwp: u8) {
         let addr = address as usize;
         let ptr = cwp as usize;
         match addr {
@@ -389,6 +410,26 @@ CC Carry: {}",
             bool_hl_string(self.get_cc_overflow()),
             bool_hl_string(self.get_cc_carry())
         )
+    }
+}
+
+impl OutputPins {
+    pub fn new() -> Self {
+        Self {
+            address: 0,
+            data: 0,
+            width_code_half: false,
+            width_code_word: false,
+            read_write: false,
+            system_mode: false,
+            instr_or_data_write: false,
+        }
+    }
+
+    pub fn phase_two_copy(&self, other: &mut Self) {
+        let addr = other.address;
+        *other = *self;
+        other.address = addr;
     }
 }
 

@@ -14,27 +14,86 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use clock::Clock;
 use config::Config;
+use cpu::OutputPins;
 use data_path::DataPath;
+use instruction::{noop, MicroOperation};
 use memory::Memory;
 use util::Result;
+
+use crate::clock::Phase;
 
 pub struct System {
     /// RISCII data path.
     data_path: DataPath,
     /// Memory state.
     mem: Memory,
+    /// External, four phase clock.
+    clock: Clock,
+    /// Next micro operation to perform for the currently executing instruction.
+    op: MicroOperation,
+    /// Current CPU non-overlapping clock phase.
+    phase: Phase,
+    // TODO move below to an MMU emulator.
+    /// CPU's output pins, input pins for memory.
+    pins_out: OutputPins,
 }
 
 impl System {
     pub fn new(config: &Config) -> Result<Self> {
+        let mut dp = DataPath::new(config)?;
+        let nop = noop(&mut dp);
         Ok(Self {
-            data_path: DataPath::new(config)?,
+            data_path: dp,
             mem: Memory::new(config),
+            clock: Clock::new(config),
+            op: nop,
+            phase: Phase::One,
+            pins_out: OutputPins::new(),
         })
     }
 
     pub fn get_mem_ref(&mut self) -> &mut Memory {
         &mut self.mem
+    }
+
+    pub fn tick(&mut self) {
+        let cur_phase = self.phase.clone();
+        self.clock.tick_and_wait(cur_phase);
+
+        // Fetch
+        // Execute.
+        // Commit.
+
+        let dp = &mut self.data_path;
+        self.phase = match self.phase {
+            Phase::One => Phase::Two,
+            Phase::Two => {
+                dp.get_output_pins_ref().phase_two_copy(&mut self.pins_out);
+                Phase::Two
+            }
+            Phase::Three => {
+                // Finish read from last cycle.
+                let mem = &self.mem;
+                let addr = self.pins_out.address;
+                // TODO check for invalid address from MMU.
+                self.data_path.set_input_pins(match mem.get_word(addr) {
+                    Ok(v) => v,
+                    Err(_) => {
+                        eprint!("Bad mem read: {}", addr);
+                        0
+                    }
+                });
+                self.data_path.commit();
+                Phase::Four
+            }
+            Phase::Four => {
+                dp.decode_input_regs();
+                self.pins_out.address = dp.get_out_address();
+                Phase::One
+            }
+            Phase::Interrupt => Phase::One,
+        };
     }
 }

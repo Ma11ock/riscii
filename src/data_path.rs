@@ -15,7 +15,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use config::Config;
-use cpu::{ProcessorStatusWord, RegisterFile, SIZEOF_INSTRUCTION};
+use cpu::{OutputPins, ProcessorStatusWord, RegisterFile, SIZEOF_INSTRUCTION};
 use instruction::noop;
 use memory::Memory;
 use std::fmt;
@@ -34,18 +34,6 @@ pub struct DataPath {
     dst_latch: u32,
     /// Source latch for the shifter and ALU.
     src_latch: u32,
-    /// Next instruction.
-    next_instruction: u32,
-    /// Destination register address.
-    rd: u8,
-    /// Source register one.
-    ra: u8,
-    /// Source register two.
-    rb: u8,
-    /// Opcode register.
-    op: u8,
-    /// Immediate register.
-    imm: u32,
     /// Next program counter, holds the address of the instruction being
     /// fetched for the next cycle.
     nxtpc: u32,
@@ -58,10 +46,42 @@ pub struct DataPath {
     lstpc: u32,
     /// 32 bit memory input pin. For receiving from main memory.
     pins_in: u32,
-    /// 32 bit memory output port. For sending data to memory (address).
-    pins_out_addr: u32,
-    /// 32 bit memory output port. For sending data to memory (data).
-    pins_out_data: u32,
+    /// Pins for communicating with the outside world (memory).
+    output_pins: OutputPins,
+
+    // Control unit latches and registers.
+    /// Data from memory.
+    dimm: u32,
+    /// Immediate register (for instruction being decoded).
+    imm1: u32,
+    /// Immediate register (for currently executing instruction).
+    imm2: u32,
+    /// Byte address register, bottom two bits of memory address being accesses.
+    bar: u8,
+    /// Destination register address (for instruction being decoded).
+    rd1: u8,
+    /// Destination register address (for currently executing instruction).
+    rd2: u8,
+    /// Destination register address (for commiting/previous instruction).
+    rd3: u8,
+    /// Source register one.
+    ra: u8,
+    /// Source register two.
+    rb: u8,
+    /// Opcode register (for instruction being decoded).
+    op1: u8,
+    /// Opcode register (for currently executing instruction).
+    op2: u8,
+    /// SCC flag of the instruction (for instruction being decoded).
+    scc_flag1: bool,
+    /// SCC flag of the instruction (for currently executing instruction).
+    scc_flag2: bool,
+    /// SCC flag of the instruction (for commiting/previous instruction).
+    scc_flag3: bool,
+    /// Immediate flag of the instruction (for instruction being decoded).
+    imm_flag1: bool,
+    /// Immediate flag of the instruction (for currently executing instruction).
+    imm_flag2: bool,
 }
 
 // Impls.
@@ -77,19 +97,56 @@ impl DataPath {
             psw: ProcessorStatusWord::new(),
             src_latch: 0,
             dst_latch: 0,
-            next_instruction: noop(),
-            rd: 0,
+            bar: 0,
+            rd1: 0,
+            rd2: 0,
+            rd3: 0,
             ra: 0,
             rb: 0,
-            op: 0,
-            imm: 0,
+            op1: 0,
+            op2: 0,
+            dimm: 0,
+            imm1: 0,
+            imm2: 0,
             nxtpc: 0,
             pc: 0,
             lstpc: 0,
             pins_in: 0,
-            pins_out_addr: 0,
-            pins_out_data: 0,
+            output_pins: OutputPins::new(),
+            scc_flag1: false,
+            scc_flag2: false,
+            scc_flag3: false,
+            imm_flag1: false,
+            imm_flag2: false,
         })
+    }
+
+    pub fn commit(&mut self) {
+        let dest_value = self.dst_latch;
+        let dest_reg = self.rd3;
+        let cwp = self.psw.get_cwp();
+        self.regs.write(dest_reg, dest_value, cwp);
+    }
+
+    /// Decode the next instruction's (in `self.pins_in`) source registers.
+    pub fn decode_input_regs(&mut self) {
+        let next_instruction = self.pins_in;
+    }
+
+    pub fn set_input_pins(&mut self, value: u32) {
+        self.pins_in = value;
+    }
+
+    pub fn get_out_address(&self) -> u32 {
+        self.output_pins.address
+    }
+
+    pub fn get_out_data(&self) -> u32 {
+        self.output_pins.data
+    }
+
+    pub fn get_output_pins_ref(&self) -> &OutputPins {
+        &self.output_pins
     }
 
     fn increment_pcs(&mut self) {

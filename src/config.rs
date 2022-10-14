@@ -244,6 +244,10 @@ impl Config {
     pub fn is_debug_mode(&self) -> bool {
         self.debug_mode
     }
+
+    pub fn get_clock_rate(&self) -> u64 {
+        self.clock_rate
+    }
 }
 
 // Local functions.

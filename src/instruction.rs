@@ -1,4 +1,5 @@
 // RISC II cpu instruction info.
+
 // "execute" and then "commit".
 // (C) Ryan Jeffrey <ryan@ryanmj.xyz>, 2022
 // This program is free software: you can redistribute it and/or modify
@@ -14,8 +15,13 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use clock::Phase;
+use data_path::DataPath;
 use std::fmt;
 use std::fmt::LowerHex;
+use std::ops::Fn;
+
+use crate::data_path;
 
 pub const SCC_LOC: u32 = 0x1000000;
 pub const DEST_LOC: u32 = 0x00F80000;
@@ -25,8 +31,12 @@ pub const SHORT_SOURCE_TYPE_LOC: u32 = 0x2000;
 
 // Public functions.
 
-pub fn noop() -> u32 {
-    Instruction::And(ShortInstruction::new(false, 0, 0, ShortSource::Imm13(0))).encode()
+// Enums and structs.
+
+pub struct MicroOperation(fn(data_path: &mut DataPath) -> Self);
+
+pub fn noop(dp: &mut DataPath) -> MicroOperation {
+    MicroOperation::new(noop)
 }
 
 /// Types of conditionals the RISC II supports.
@@ -571,6 +581,19 @@ impl fmt::Display for Conditional {
         }
     }
 }
+
+impl MicroOperation {
+    pub fn new(func: fn(data_path: &mut DataPath) -> Self) -> Self {
+        Self { 0: func }
+    }
+
+    // TODO temporary until implementing Fn becomes stable.
+    pub fn call(&self, data_path: &mut DataPath) -> Self {
+        self.0(data_path)
+    }
+}
+
+// Static functions.
 
 fn get_opdata_from_cond(cond: Conditional) -> u8 {
     type C = Conditional;
