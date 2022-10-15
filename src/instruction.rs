@@ -26,6 +26,7 @@ use crate::data_path;
 pub const SCC_LOC: u32 = 0x1000000;
 pub const DEST_LOC: u32 = 0x00F80000;
 pub const RS1_LOC: u32 = 0x7c000;
+pub const RS2_LOC: u32 = 0x1f;
 pub const IMM19_LOC: u32 = 0x7FFFF;
 pub const SHORT_SOURCE_TYPE_LOC: u32 = 0x2000;
 

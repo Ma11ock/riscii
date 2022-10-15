@@ -16,12 +16,18 @@
 
 use config::Config;
 use cpu::{OutputPins, ProcessorStatusWord, RegisterFile, SIZEOF_INSTRUCTION};
-use instruction::noop;
+use instruction::*;
 use memory::Memory;
 use std::fmt;
 use util::Result;
 
 use crate::cpu;
+use crate::instruction::DEST_LOC;
+use crate::instruction::IMM19_LOC;
+use crate::instruction::RS1_LOC;
+use crate::instruction::RS2_LOC;
+use crate::instruction::SCC_LOC;
+use crate::instruction::SHORT_SOURCE_TYPE_LOC;
 
 /// RISC II emulated data path.
 #[derive(Debug, Clone)]
@@ -48,7 +54,10 @@ pub struct DataPath {
     pins_in: u32,
     /// Pins for communicating with the outside world (memory).
     output_pins: OutputPins,
-
+    /// Input latch 1 for the ALU (fed by src1).
+    ai: u32,
+    /// Input latch 2 for the ALU (fed by src2).
+    bi: u32,
     // Control unit latches and registers.
     /// Data from memory.
     dimm: u32,
@@ -64,10 +73,14 @@ pub struct DataPath {
     rd2: u8,
     /// Destination register address (for commiting/previous instruction).
     rd3: u8,
-    /// Source register one.
-    ra: u8,
-    /// Source register two.
-    rb: u8,
+    /// Source register one (for instruction being decoded).
+    rs1_1: u8,
+    /// Source register two (for instruction being decoded).
+    rs2_1: u8,
+    /// Source register one (for currently executing instruction).
+    rs1_2: u8,
+    /// Source register two (for currently executing instruction).
+    rs2_2: u8,
     /// Opcode register (for instruction being decoded).
     op1: u8,
     /// Opcode register (for currently executing instruction).
@@ -97,12 +110,16 @@ impl DataPath {
             psw: ProcessorStatusWord::new(),
             src_latch: 0,
             dst_latch: 0,
+            ai: 0,
+            bi: 0,
             bar: 0,
             rd1: 0,
             rd2: 0,
             rd3: 0,
-            ra: 0,
-            rb: 0,
+            rs1_1: 0,
+            rs2_1: 0,
+            rs1_2: 0,
+            rs2_2: 0,
             op1: 0,
             op2: 0,
             dimm: 0,
@@ -128,6 +145,16 @@ impl DataPath {
         self.regs.write(dest_reg, dest_value, cwp);
     }
 
+    pub fn route_regs_to_alu(&mut self) {
+        let src1 = self.rs1_2;
+        let src2 = self.rs1_2;
+        let cwp = self.psw.get_cwp();
+        let read1 = self.regs.read(src1, cwp);
+        let read2 = self.regs.read(src2, cwp);
+        self.ai = read1;
+        self.bi = read2;
+    }
+
     /// Decode the next instruction's (in `self.pins_in`) source registers.
     pub fn decode_input_regs(&mut self) {
         let next_instruction = self.pins_in;
@@ -135,6 +162,14 @@ impl DataPath {
 
     pub fn set_input_pins(&mut self, value: u32) {
         self.pins_in = value;
+        // Set other latches hooked up to memory data path.
+        self.op1 = ((value & 0xFE000000) >> 25) as u8;
+        self.imm_flag1 = value & SHORT_SOURCE_TYPE_LOC != 0;
+        self.scc_flag1 = value & SCC_LOC != 0;
+        self.rd1 = ((value & DEST_LOC) >> 19) as u8;
+        self.rs1_1 = ((value & RS1_LOC) >> 14) as u8;
+        self.rs2_1 = (value & RS2_LOC) as u8;
+        self.imm1 = value & IMM19_LOC;
     }
 
     pub fn get_out_address(&self) -> u32 {

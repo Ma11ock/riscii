@@ -16,7 +16,6 @@ use instruction::ShortSource;
 use memory::Memory;
 use std::convert::TryInto;
 use std::fmt;
-use util::Result;
 
 use berr;
 
@@ -208,16 +207,35 @@ impl RegisterFile {
     ///                   [31-26] -> Ins
     /// Anything outside this [0-31] range is an invalid argument.
     /// # Arguments
-    /// * `which` - Which register. [0-31] are the only valid values.
-    /// * `psw` - Processor status object, contains window information.
-    pub fn read(&self, address: u32, cwp: u8) -> u32 {
+    /// * `address` - Which register. [0-31] are the only valid values.
+    /// * `cwp` - Current window pointer. Used to determine real address of the register.
+    pub fn read(&self, address: u8, cwp: u8) -> u32 {
         let addr = address as usize;
         let ptr = cwp as usize;
-        match addr {
-            0..=9 => self.0[addr],
-            10..=31 => self.0[NUM_ADDED_PER_WINDOW * ptr + addr + NUM_GLOBALS],
-            _ => 0,
+        match self.get_real_address(address, cwp) {
+            Ok(a) => self.0[a],
+            Err(_) => 0, // TODO figure out what to do here.
         }
+    }
+
+    /// Get a register's real address in the register window. Returns
+    ///  Err(()) if address is out of range.
+    /// Register mapping: [0-9] -> Globals
+    ///                   [10-15] -> Outs
+    ///                   [16-25] -> Locals
+    ///                   [31-26] -> Ins
+    /// Anything outside this [0-31] range is an invalid argument.
+    /// # Arguments
+    /// * `address` - Which register. [0-31] are the only valid values.
+    /// * `cwp` - Current window pointer. Used to determine real address of the register.
+    pub fn get_real_address(&self, address: u8, cwp: u8) -> Result<usize, ()> {
+        let addr = address as usize;
+        let ptr = cwp as usize;
+        Ok(match addr {
+            0..=9 => addr,
+            10..=31 => NUM_ADDED_PER_WINDOW * ptr + addr + NUM_GLOBALS,
+            _ => return Err(()),
+        })
     }
 
     /// Set a register's value (unsigned). Return the register's value on
@@ -227,6 +245,7 @@ impl RegisterFile {
     ///                   [16-25] -> Locals
     ///                   [31-26] -> Ins
     /// Anything outside this [0-31] range is an invalid argument.
+    /// Note: writes to register 0 are a no op.
     /// # Arguments
     /// * `address` - Which register. [0-31] are the only valid values.
     /// * `value` - Value to write into the register.
@@ -234,11 +253,12 @@ impl RegisterFile {
     pub fn write(&mut self, address: u8, value: u32, cwp: u8) {
         let addr = address as usize;
         let ptr = cwp as usize;
-        match addr {
-            0..=9 => self.0[addr] = value,
-            10..=31 => self.0[NUM_ADDED_PER_WINDOW * ptr + addr + NUM_GLOBALS] = value,
-            _ => {}
+        match self.get_real_address(address, cwp) {
+            Ok(a) => self.0[a] = value,
+            Err(_) => {} // TODO figure out what to do here.
         }
+        // Ensure register is 0.
+        self.0[0] = 0;
     }
 }
 

@@ -68,17 +68,24 @@ impl System {
 
         let dp = &mut self.data_path;
         self.phase = match self.phase {
-            Phase::One => Phase::Two,
-            Phase::Two => {
-                dp.get_output_pins_ref().phase_two_copy(&mut self.pins_out);
+            Phase::One => {
+                // Registers are read and then send to the input latches of the ALU.
+                dp.route_regs_to_alu();
                 Phase::Two
+            }
+            Phase::Two => {
+                // Memory copies output pin data for writing (if any writing is to be done).
+                dp.get_output_pins_ref().phase_two_copy(&mut self.pins_out);
+
+                // Route sources and immediate thru shifter.
+                Phase::Three
             }
             Phase::Three => {
                 // Finish read from last cycle.
                 let mem = &self.mem;
                 let addr = self.pins_out.address;
                 // TODO check for invalid address from MMU.
-                self.data_path.set_input_pins(match mem.get_word(addr) {
+                dp.set_input_pins(match mem.get_word(addr) {
                     Ok(v) => v,
                     Err(_) => {
                         eprint!("Bad mem read: {}", addr);
@@ -89,7 +96,8 @@ impl System {
                 Phase::Four
             }
             Phase::Four => {
-                dp.decode_input_regs();
+                // In actual RISCII this is where the source and dest registers are decoded
+                // for the next instruction, but that is unnecessary here.
                 self.pins_out.address = dp.get_out_address();
                 Phase::One
             }
