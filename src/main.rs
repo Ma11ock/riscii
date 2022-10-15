@@ -25,6 +25,7 @@ mod encode_test;
 mod main_test;
 
 // Modules declared as pub to shut up rust-analyzer about dead code.
+pub mod alu;
 pub mod clock;
 pub mod config;
 pub mod cpu;

@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use alu::ALU;
 use config::Config;
 use cpu::{OutputPins, ProcessorStatusWord, RegisterFile, SIZEOF_INSTRUCTION};
 use instruction::*;
@@ -54,10 +55,9 @@ pub struct DataPath {
     pins_in: u32,
     /// Pins for communicating with the outside world (memory).
     output_pins: OutputPins,
-    /// Input latch 1 for the ALU (fed by src1).
-    ai: u32,
-    /// Input latch 2 for the ALU (fed by src2).
-    bi: u32,
+    /// Arithmetic logic unit.
+    alu: ALU,
+
     // Control unit latches and registers.
     /// Data from memory.
     dimm: u32,
@@ -110,8 +110,7 @@ impl DataPath {
             psw: ProcessorStatusWord::new(),
             src_latch: 0,
             dst_latch: 0,
-            ai: 0,
-            bi: 0,
+            alu: ALU::new(),
             bar: 0,
             rd1: 0,
             rd2: 0,
@@ -151,8 +150,8 @@ impl DataPath {
         let cwp = self.psw.get_cwp();
         let read1 = self.regs.read(src1, cwp);
         let read2 = self.regs.read(src2, cwp);
-        self.ai = read1;
-        self.bi = read2;
+        self.alu.ai = read1;
+        self.alu.bi = read2;
     }
 
     /// Decode the next instruction's (in `self.pins_in`) source registers.
