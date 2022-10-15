@@ -35,6 +35,7 @@ pub mod decode;
 pub mod instruction;
 pub mod memory;
 pub mod sdl;
+pub mod shifter;
 pub mod system;
 pub mod util;
 pub mod window;

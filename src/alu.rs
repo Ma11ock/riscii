@@ -95,7 +95,7 @@ impl fmt::Debug for ALU {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Input register: {}, Output register: {}",
+            "Input register one: {}, Input register two: {}",
             self.ai, self.bi,
         )
     }

@@ -19,16 +19,11 @@ use config::Config;
 use cpu::{OutputPins, ProcessorStatusWord, RegisterFile, SIZEOF_INSTRUCTION};
 use instruction::*;
 use memory::Memory;
+use shifter;
 use std::fmt;
 use util::Result;
 
-use crate::cpu;
-use crate::instruction::DEST_LOC;
-use crate::instruction::IMM19_LOC;
-use crate::instruction::RS1_LOC;
-use crate::instruction::RS2_LOC;
-use crate::instruction::SCC_LOC;
-use crate::instruction::SHORT_SOURCE_TYPE_LOC;
+use crate::shifter::Shifter;
 
 /// RISC II emulated data path.
 #[derive(Debug, Clone)]
@@ -39,8 +34,6 @@ pub struct DataPath {
     psw: ProcessorStatusWord,
     /// Temporary latch for destination register.
     dst_latch: u32,
-    /// Source latch for the shifter and ALU.
-    src_latch: u32,
     /// Next program counter, holds the address of the instruction being
     /// fetched for the next cycle.
     nxtpc: u32,
@@ -57,14 +50,14 @@ pub struct DataPath {
     output_pins: OutputPins,
     /// Arithmetic logic unit.
     alu: ALU,
+    /// Shifter unit.
+    shifter: Shifter,
 
     // Control unit latches and registers.
     /// Data from memory.
     dimm: u32,
     /// Immediate register (for instruction being decoded).
-    imm1: u32,
-    /// Immediate register (for currently executing instruction).
-    imm2: u32,
+    imm: u32,
     /// Byte address register, bottom two bits of memory address being accesses.
     bar: u8,
     /// Destination register address (for instruction being decoded).
@@ -108,7 +101,7 @@ impl DataPath {
         Ok(Self {
             regs: RegisterFile::new(),
             psw: ProcessorStatusWord::new(),
-            src_latch: 0,
+            shifter: Shifter::new(),
             dst_latch: 0,
             alu: ALU::new(),
             bar: 0,
@@ -122,8 +115,7 @@ impl DataPath {
             op1: 0,
             op2: 0,
             dimm: 0,
-            imm1: 0,
-            imm2: 0,
+            imm: 0,
             nxtpc: 0,
             pc: 0,
             lstpc: 0,
@@ -168,7 +160,7 @@ impl DataPath {
         self.rd1 = ((value & DEST_LOC) >> 19) as u8;
         self.rs1_1 = ((value & RS1_LOC) >> 14) as u8;
         self.rs2_1 = (value & RS2_LOC) as u8;
-        self.imm1 = value & IMM19_LOC;
+        self.imm = value & IMM19_LOC;
     }
 
     pub fn get_out_address(&self) -> u32 {
@@ -186,7 +178,7 @@ impl DataPath {
     fn increment_pcs(&mut self) {
         self.lstpc = self.pc;
         self.pc = self.nxtpc;
-        self.nxtpc += cpu::SIZEOF_INSTRUCTION;
+        self.nxtpc += SIZEOF_INSTRUCTION;
     }
 
     fn branch_to(&mut self, address: u32) {
