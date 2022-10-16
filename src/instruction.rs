@@ -16,12 +16,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use clock::Phase;
-use data_path::DataPath;
+use data_path::{Control, DataPath};
 use std::fmt;
 use std::fmt::LowerHex;
 use std::ops::Fn;
-
-use crate::data_path;
 
 pub const SCC_LOC: u32 = 0x1000000;
 pub const DEST_LOC: u32 = 0x00F80000;
@@ -29,8 +27,84 @@ pub const RS1_LOC: u32 = 0x7c000;
 pub const RS2_LOC: u32 = 0x1f;
 pub const IMM19_LOC: u32 = 0x7FFFF;
 pub const SHORT_SOURCE_TYPE_LOC: u32 = 0x2000;
+pub const OPCODE_LOC: u32 = 0xFE000000;
 
 // Public functions.
+
+pub fn decode_opcode(instruction: u32) -> Control {
+    let memory = (instruction & (0b11 << 6) >> 6) == 1;
+    let store = (instruction & (0b111 << 5) >> 5) == 0b11;
+    let pc_relative = (memory && (instruction & 1) == 1)
+        || ((instruction & 0b11 == 0b01) && (instruction & (0b1111 << 3) == 1));
+    let signed_load = (instruction & (0b1111 << 3) == 0b0101) && (instruction & 0b10 == 0b10);
+    let conditional = instruction & (0b11111 << 2) == 0b00011;
+    let mut long = false;
+    let mut immediate = false;
+    let mut dst_is_psw = false;
+
+    let opcode = ((instruction & OPCODE_LOC) >> 25) as u8;
+    // TODO set ALU and shift operation.
+    // Match opcode's prefix.
+    match opcode >> 4 {
+        0 => match opcode & 0xf {
+            1 => {
+                // Calli.
+            }
+            2 => {
+                // GetPSW
+                dst_is_psw = true;
+            }
+            3 => {
+                // GetLPC
+            }
+            4 => {
+                // GetLPC
+            }
+            8 => {
+                // Callx
+            }
+            9 => {
+                // Callr
+                long = true;
+                immediate = true;
+            }
+            12 => {
+                // Jmpx
+            }
+            13 => {
+                // Jmpr
+                long = true;
+                immediate = true;
+            }
+            14 => {
+                // Ret
+            }
+            15 => {
+                // Reti
+            }
+            _ => {}
+        },
+
+        _ => {}
+    }
+
+    immediate = if immediate {
+        immediate
+    } else {
+        instruction & SHORT_SOURCE_TYPE_LOC == 0
+    };
+
+    Control::init(
+        long,
+        immediate,
+        memory,
+        store,
+        pc_relative,
+        signed_load,
+        conditional,
+        dst_is_psw,
+    )
+}
 
 // Enums and structs.
 
@@ -39,6 +113,12 @@ pub struct MicroOperation(fn(data_path: &mut DataPath) -> Self);
 pub fn noop(dp: &mut DataPath) -> MicroOperation {
     MicroOperation::new(noop)
 }
+
+// Instructions change behavior of ALU, shifter, and for DIMM.
+// Also which register is loaded into the ALU (stores load Rd in bi).
+// Loads and stores suspend pipeline for 1 cycle.
+
+//pub fn add_begin(dp: &mut DataPath) -> MicroOperation {}
 
 /// Types of conditionals the RISC II supports.
 #[derive(PartialEq, Eq, Copy, Clone)]

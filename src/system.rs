@@ -17,7 +17,7 @@
 use clock::Clock;
 use config::Config;
 use cpu::OutputPins;
-use data_path::DataPath;
+use data_path::{Control, DataPath};
 use instruction::{noop, MicroOperation};
 use memory::Memory;
 use util::Result;
@@ -69,13 +69,18 @@ impl System {
         let dp = &mut self.data_path;
         self.phase = match self.phase {
             Phase::One => {
-                // Registers are read and then send to the input latches of the ALU.
+                // Tell the pipeline we're moving on to the next instruction.
+                dp.shift_pipeline_latches();
+                // Registers are read and then sent to the input latches of the ALU.
                 dp.route_regs_to_alu();
                 Phase::Two
             }
             Phase::Two => {
                 // Memory copies output pin data for writing (if any writing is to be done).
                 dp.get_output_pins_ref().phase_two_copy(&mut self.pins_out);
+
+                // Route immediate to ALU.
+                dp.route_imm_to_alu();
 
                 // Route sources and immediate thru shifter.
                 Phase::Three
@@ -99,6 +104,9 @@ impl System {
                 // In actual RISCII this is where the source and dest registers are decoded
                 // for the next instruction, but that is unnecessary here.
                 self.pins_out.address = dp.get_out_address();
+
+                // Decode opcode.
+
                 Phase::One
             }
             Phase::Interrupt => Phase::One,

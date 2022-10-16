@@ -1,5 +1,4 @@
 // RISC II emulated data path.
-// See `decode.rs` for the first step, and `commit.rs` for the third step.
 // (C) Ryan Jeffrey <ryan@ryanmj.xyz>, 2022
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -24,6 +23,20 @@ use std::fmt;
 use util::Result;
 
 use crate::shifter::Shifter;
+
+pub type MicroOp = fn(dp: &mut DataPath);
+
+#[derive(Debug, Clone)]
+pub struct Control {
+    pub long: bool,
+    pub immediate: bool,
+    pub memory: bool,
+    pub store: bool,
+    pub pc_relative: bool,
+    pub signed_load: bool,
+    pub conditional: bool,
+    pub dest_is_psw: bool,
+}
 
 /// RISC II emulated data path.
 #[derive(Debug, Clone)]
@@ -88,6 +101,11 @@ pub struct DataPath {
     imm_flag1: bool,
     /// Immediate flag of the instruction (for currently executing instruction).
     imm_flag2: bool,
+
+    /// Control bits.
+    control1: Control,
+    control2: Control,
+    control3: Control,
 }
 
 // Impls.
@@ -126,6 +144,9 @@ impl DataPath {
             scc_flag3: false,
             imm_flag1: false,
             imm_flag2: false,
+            control1: Control::new(),
+            control2: Control::new(),
+            control3: Control::new(),
         })
     }
 
@@ -137,13 +158,18 @@ impl DataPath {
     }
 
     pub fn route_regs_to_alu(&mut self) {
-        let src1 = self.rs1_2;
-        let src2 = self.rs1_2;
-        let cwp = self.psw.get_cwp();
-        let read1 = self.regs.read(src1, cwp);
-        let read2 = self.regs.read(src2, cwp);
-        self.alu.ai = read1;
-        self.alu.bi = read2;
+        if self.control1.pc_relative {
+            self.alu.ai = self.pc;
+        } else {
+            // TODO investigate interrupts. Should src2 be set no matter what?
+            let src1 = self.rs1_2;
+            let src2 = self.rs1_2;
+            let cwp = self.psw.get_cwp();
+            let read1 = self.regs.read(src1, cwp);
+            let read2 = self.regs.read(src2, cwp);
+            self.alu.ai = read1;
+            self.alu.bi = read2;
+        }
     }
 
     /// Decode the next instruction's (in `self.pins_in`) source registers.
@@ -173,6 +199,31 @@ impl DataPath {
 
     pub fn get_output_pins_ref(&self) -> &OutputPins {
         &self.output_pins
+    }
+
+    pub fn route_imm_to_alu(&mut self) {
+        if self.control1.immediate {
+            self.alu.bi = self.dimm;
+        }
+    }
+
+    pub fn shift_pipeline_latches(&mut self) {
+        // Move the control bits.
+        self.control3 = self.control2.clone();
+        self.control2 = self.control1.clone();
+        // Move the destination register.
+        self.rd3 = self.rd2;
+        self.rd2 = self.rd1;
+        // Move the source registers.
+        self.rs1_2 = self.rs1_1;
+        self.rs2_2 = self.rs2_1;
+        // Move the scc flags.
+        self.scc_flag3 = self.scc_flag2;
+        self.scc_flag2 = self.scc_flag1;
+        // Move Imm flag.
+        self.imm_flag2 = self.imm_flag1;
+        // Move the opcode.
+        self.op2 = self.op1;
     }
 
     fn increment_pcs(&mut self) {
@@ -237,6 +288,47 @@ impl DataPath {
 
     pub fn set_psw(&mut self, psw: u16) {
         self.psw = ProcessorStatusWord::from_u16(psw);
+    }
+
+    pub fn decode(&mut self) {
+        self.control1 = decode_opcode(self.pins_in);
+    }
+}
+
+impl Control {
+    pub fn new() -> Self {
+        Self {
+            long: false,
+            immediate: false,
+            memory: false,
+            store: false,
+            pc_relative: false,
+            signed_load: false,
+            conditional: false,
+            dest_is_psw: false,
+        }
+    }
+
+    pub fn init(
+        long: bool,
+        immediate: bool,
+        memory: bool,
+        store: bool,
+        pc_relative: bool,
+        signed_load: bool,
+        conditional: bool,
+        dest_is_psw: bool,
+    ) -> Self {
+        Self {
+            long: long,
+            immediate: immediate,
+            memory: memory,
+            store: store,
+            pc_relative: pc_relative,
+            signed_load: signed_load,
+            conditional: conditional,
+            dest_is_psw: dest_is_psw,
+        }
     }
 }
 
