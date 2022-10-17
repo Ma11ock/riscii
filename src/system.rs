@@ -38,11 +38,13 @@ pub struct System {
     // TODO move below to an MMU emulator.
     /// CPU's output pins, input pins for memory.
     pins_out: OutputPins,
+    /// True if the pipeline is currently suspended as a result of a memory operation.
+    pipeline_suspended: bool,
 }
 
 impl System {
     pub fn new(config: &Config) -> Result<Self> {
-        let mut dp = DataPath::new(config)?;
+        let mut dp = DataPath::new();
         let nop = noop(&mut dp);
         Ok(Self {
             data_path: dp,
@@ -51,6 +53,7 @@ impl System {
             op: nop,
             phase: Phase::One,
             pins_out: OutputPins::new(),
+            pipeline_suspended: false,
         })
     }
 
@@ -69,18 +72,22 @@ impl System {
         let dp = &mut self.data_path;
         self.phase = match self.phase {
             Phase::One => {
-                // Tell the pipeline we're moving on to the next instruction.
-                dp.shift_pipeline_latches();
-                // Registers are read and then sent to the input latches of the ALU.
-                dp.route_regs_to_alu();
+                if !self.pipeline_suspended {
+                    // Tell the pipeline we're moving on to the next instruction.
+                    dp.shift_pipeline_latches();
+                    // Registers are read and then sent to the input latches of the ALU.
+                    dp.route_regs_to_alu();
+                }
                 Phase::Two
             }
             Phase::Two => {
                 // Memory copies output pin data for writing (if any writing is to be done).
                 dp.get_output_pins_ref().phase_two_copy(&mut self.pins_out);
 
-                // Route immediate to ALU.
-                dp.route_imm_to_alu();
+                if !self.pipeline_suspended {
+                    // Route immediate to ALU.
+                    dp.route_imm_to_alu();
+                }
 
                 // Route sources and immediate thru shifter.
                 Phase::Three
@@ -88,16 +95,22 @@ impl System {
             Phase::Three => {
                 // Finish read from last cycle.
                 let mem = &self.mem;
-                let addr = self.pins_out.address;
                 // TODO check for invalid address from MMU.
-                dp.set_input_pins(match mem.get_word(addr) {
+                dp.set_input_pins(match mem.get_word(self.pins_out.address) {
                     Ok(v) => v,
                     Err(_) => {
-                        eprint!("Bad mem read: {}", addr);
+                        eprint!("Bad mem read: {}", self.pins_out.address);
                         0
                     }
                 });
-                self.data_path.commit();
+
+                if self.pipeline_suspended {
+                    self.pipeline_suspended = false;
+                } else if dp.current_instruction_is_memory() {
+                    // Commit the result of the last instruction.
+                    dp.commit();
+                    self.pipeline_suspended = true;
+                }
                 Phase::Four
             }
             Phase::Four => {
@@ -105,8 +118,10 @@ impl System {
                 // for the next instruction, but that is unnecessary here.
                 self.pins_out.address = dp.get_out_address();
 
-                // Decode opcode.
-
+                if !self.pipeline_suspended {
+                    dp.decode();
+                }
+                // If the instruction was a load, shift the result if necessary.
                 Phase::One
             }
             Phase::Interrupt => Phase::One,

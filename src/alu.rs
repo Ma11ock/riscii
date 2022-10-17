@@ -83,6 +83,21 @@ impl ALU {
     pub fn subci(&self, carry: bool) -> u32 {
         self.bi - self.ai - (!carry as u32)
     }
+
+    /// Right logical shift of the input latches.
+    pub fn shift_right_logical(&self) -> u32 {
+        self.ai >> self.bi
+    }
+
+    /// Right arithmetic shift of the input latches.
+    pub fn shift_right_arithmetic(&self) -> u32 {
+        ((self.ai as i32) >> self.bi) as u32
+    }
+
+    /// Left arithmetic shift of the input latches.
+    pub fn shift_left_logical(&self) -> u32 {
+        self.ai << self.bi
+    }
 }
 
 impl fmt::Display for ALU {

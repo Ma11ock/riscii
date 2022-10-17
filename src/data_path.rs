@@ -57,8 +57,6 @@ pub struct DataPath {
     /// (or last attempted to be executed). When running an interrupt `lstpc`
     /// holds the address of the instruction that was aborted.
     lstpc: u32,
-    /// 32 bit memory input pin. For receiving from main memory.
-    pins_in: u32,
     /// Pins for communicating with the outside world (memory).
     output_pins: OutputPins,
     /// Arithmetic logic unit.
@@ -115,8 +113,8 @@ impl DataPath {
     /// a string on error.
     /// # Arguments
     /// * `config` - Emulator configuration.
-    pub fn new(config: &Config) -> Result<Self> {
-        Ok(Self {
+    pub fn new() -> Self {
+        Self {
             regs: RegisterFile::new(),
             psw: ProcessorStatusWord::new(),
             shifter: Shifter::new(),
@@ -137,7 +135,6 @@ impl DataPath {
             nxtpc: 0,
             pc: 0,
             lstpc: 0,
-            pins_in: 0,
             output_pins: OutputPins::new(),
             scc_flag1: false,
             scc_flag2: false,
@@ -147,7 +144,7 @@ impl DataPath {
             control1: Control::new(),
             control2: Control::new(),
             control3: Control::new(),
-        })
+        }
     }
 
     pub fn commit(&mut self) {
@@ -163,7 +160,7 @@ impl DataPath {
         } else {
             // TODO investigate interrupts. Should src2 be set no matter what?
             let src1 = self.rs1_2;
-            let src2 = self.rs1_2;
+            let src2 = self.rs2_2;
             let cwp = self.psw.get_cwp();
             let read1 = self.regs.read(src1, cwp);
             let read2 = self.regs.read(src2, cwp);
@@ -172,13 +169,8 @@ impl DataPath {
         }
     }
 
-    /// Decode the next instruction's (in `self.pins_in`) source registers.
-    pub fn decode_input_regs(&mut self) {
-        let next_instruction = self.pins_in;
-    }
-
     pub fn set_input_pins(&mut self, value: u32) {
-        self.pins_in = value;
+        self.dimm = value;
         // Set other latches hooked up to memory data path.
         self.op1 = ((value & 0xFE000000) >> 25) as u8;
         self.imm_flag1 = value & SHORT_SOURCE_TYPE_LOC != 0;
@@ -224,6 +216,18 @@ impl DataPath {
         self.imm_flag2 = self.imm_flag1;
         // Move the opcode.
         self.op2 = self.op1;
+        // Move the actual immediate.
+        self.dimm = if self.control2.long {
+            // Place into highest 19 bits.
+            self.imm << 13
+        } else {
+            // Sign extend immediate to 32 bits.
+            if self.imm & SHORT_IMM_SIGN_LOC != 0 {
+                self.imm & SHORT_IMM_SIGNEXT_BITS
+            } else {
+                self.imm
+            }
+        };
     }
 
     fn increment_pcs(&mut self) {
@@ -291,7 +295,83 @@ impl DataPath {
     }
 
     pub fn decode(&mut self) {
-        self.control1 = decode_opcode(self.pins_in);
+        let instruction = self.dimm;
+        let memory = (instruction & (0b11 << 6) >> 6) == 1;
+        let store = (instruction & (0b111 << 5) >> 5) == 0b11;
+        let pc_relative = (memory && (instruction & 1) == 1)
+            || ((instruction & 0b11 == 0b01) && (instruction & (0b1111 << 3) == 1));
+        let signed_load = (instruction & (0b1111 << 3) == 0b0101) && (instruction & 0b10 == 0b10);
+        let conditional = instruction & (0b11111 << 2) == 0b00011;
+        let mut long = false;
+        let mut immediate = false;
+        let mut dst_is_psw = false;
+
+        let opcode = ((instruction & OPCODE_LOC) >> 25) as u8;
+        // TODO set ALU and shift operation.
+        // Match opcode's prefix.
+        match opcode >> 4 {
+            0 => match opcode & 0xf {
+                1 => {
+                    // Calli.
+                }
+                2 => {
+                    // GetPSW
+                    dst_is_psw = true;
+                }
+                3 => {
+                    // GetLPC
+                }
+                4 => {
+                    // GetLPC
+                }
+                8 => {
+                    // Callx
+                }
+                9 => {
+                    // Callr
+                    long = true;
+                    immediate = true;
+                }
+                12 => {
+                    // Jmpx
+                }
+                13 => {
+                    // Jmpr
+                    long = true;
+                    immediate = true;
+                }
+                14 => {
+                    // Ret
+                }
+                15 => {
+                    // Reti
+                }
+                _ => {}
+            },
+
+            _ => {}
+        }
+
+        immediate = if immediate {
+            immediate
+        } else {
+            instruction & SHORT_SOURCE_TYPE_LOC == 0
+        };
+
+        self.control1 = Control::init(
+            long,
+            immediate,
+            memory,
+            store,
+            pc_relative,
+            signed_load,
+            conditional,
+            dst_is_psw,
+        );
+    }
+
+    pub fn current_instruction_is_memory(&self) -> bool {
+        self.control2.memory
     }
 }
 

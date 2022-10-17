@@ -28,83 +28,12 @@ pub const RS2_LOC: u32 = 0x1f;
 pub const IMM19_LOC: u32 = 0x7FFFF;
 pub const SHORT_SOURCE_TYPE_LOC: u32 = 0x2000;
 pub const OPCODE_LOC: u32 = 0xFE000000;
+pub const SHORT_IMM_SIGN_LOC: u32 = 0x1000;
+pub const SHORT_IMM_SIGNEXT_BITS: u32 = 0xFFFFE000;
 
 // Public functions.
 
-pub fn decode_opcode(instruction: u32) -> Control {
-    let memory = (instruction & (0b11 << 6) >> 6) == 1;
-    let store = (instruction & (0b111 << 5) >> 5) == 0b11;
-    let pc_relative = (memory && (instruction & 1) == 1)
-        || ((instruction & 0b11 == 0b01) && (instruction & (0b1111 << 3) == 1));
-    let signed_load = (instruction & (0b1111 << 3) == 0b0101) && (instruction & 0b10 == 0b10);
-    let conditional = instruction & (0b11111 << 2) == 0b00011;
-    let mut long = false;
-    let mut immediate = false;
-    let mut dst_is_psw = false;
-
-    let opcode = ((instruction & OPCODE_LOC) >> 25) as u8;
-    // TODO set ALU and shift operation.
-    // Match opcode's prefix.
-    match opcode >> 4 {
-        0 => match opcode & 0xf {
-            1 => {
-                // Calli.
-            }
-            2 => {
-                // GetPSW
-                dst_is_psw = true;
-            }
-            3 => {
-                // GetLPC
-            }
-            4 => {
-                // GetLPC
-            }
-            8 => {
-                // Callx
-            }
-            9 => {
-                // Callr
-                long = true;
-                immediate = true;
-            }
-            12 => {
-                // Jmpx
-            }
-            13 => {
-                // Jmpr
-                long = true;
-                immediate = true;
-            }
-            14 => {
-                // Ret
-            }
-            15 => {
-                // Reti
-            }
-            _ => {}
-        },
-
-        _ => {}
-    }
-
-    immediate = if immediate {
-        immediate
-    } else {
-        instruction & SHORT_SOURCE_TYPE_LOC == 0
-    };
-
-    Control::init(
-        long,
-        immediate,
-        memory,
-        store,
-        pc_relative,
-        signed_load,
-        conditional,
-        dst_is_psw,
-    )
-}
+pub fn decode_opcode(instruction: u32) -> Control {}
 
 // Enums and structs.
 
