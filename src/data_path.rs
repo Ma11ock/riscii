@@ -294,7 +294,49 @@ impl DataPath {
         self.psw = ProcessorStatusWord::from_u16(psw);
     }
 
-    pub fn decode(&mut self) {
+    pub fn test_conditional(&self) -> bool {
+        let n = self.psw.get_cc_neg();
+        let v = self.psw.get_cc_overflow();
+        let z = self.psw.get_cc_zero();
+        let c = self.psw.get_cc_carry();
+        // TODO in the book some of these XOR's are +, not sure what the difference
+        // is between one bit + and XOR.
+        match self.rd2 & 0xf {
+            // Greater than.
+            1 => !((n ^ v) ^ z),
+            // Less than or equal.
+            2 => (n ^ v) ^ z,
+            // Greater than or equal to.
+            3 => !(n ^ v),
+            // Less than,
+            4 => n ^ v,
+            // Higher than
+            5 => !(!c ^ z),
+            // Lower than or same.
+            6 => !c ^ z,
+            // Lower than no carry.
+            7 => !c,
+            // Higher than no sign.
+            8 => c,
+            // Plus (test signed).
+            9 => !n,
+            // Minus (test signed).
+            10 => n,
+            // Not equal.
+            11 => !z,
+            // Equal.
+            12 => z,
+            // No overflow.
+            13 => !v,
+            // Overflow.
+            14 => v,
+            // Always.
+            15 => true,
+            _ => false,
+        }
+    }
+
+    pub fn decode(&mut self) -> InstructionCycle {
         let instruction = self.dimm;
         let memory = (instruction & (0b11 << 6) >> 6) == 1;
         let store = (instruction & (0b111 << 5) >> 5) == 0b11;
@@ -307,22 +349,24 @@ impl DataPath {
         let mut dst_is_psw = false;
 
         let opcode = ((instruction & OPCODE_LOC) >> 25) as u8;
+
+        let mut result = InstructionCycle::noop_cycle();
         // TODO set ALU and shift operation.
         // Match opcode's prefix.
         match opcode >> 4 {
             0 => match opcode & 0xf {
                 1 => {
-                    // Calli.
+                    // Calli TODO.
                 }
                 2 => {
                     // GetPSW
-                    dst_is_psw = true;
                 }
                 3 => {
                     // GetLPC
                 }
                 4 => {
-                    // GetLPC
+                    // PutPSW
+                    dst_is_psw = true;
                 }
                 8 => {
                     // Callx
@@ -368,6 +412,7 @@ impl DataPath {
             conditional,
             dst_is_psw,
         );
+        result
     }
 
     pub fn current_instruction_is_memory(&self) -> bool {

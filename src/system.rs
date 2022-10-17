@@ -18,7 +18,7 @@ use clock::Clock;
 use config::Config;
 use cpu::OutputPins;
 use data_path::{Control, DataPath};
-use instruction::{noop, MicroOperation};
+use instruction::{noop, InstructionCycle};
 use memory::Memory;
 use util::Result;
 
@@ -32,7 +32,7 @@ pub struct System {
     /// External, four phase clock.
     clock: Clock,
     /// Next micro operation to perform for the currently executing instruction.
-    op: MicroOperation,
+    cycle_ops: InstructionCycle,
     /// Current CPU non-overlapping clock phase.
     phase: Phase,
     // TODO move below to an MMU emulator.
@@ -50,7 +50,7 @@ impl System {
             data_path: dp,
             mem: Memory::new(config),
             clock: Clock::new(config),
-            op: nop,
+            cycle_ops: InstructionCycle::noop_cycle(),
             phase: Phase::One,
             pins_out: OutputPins::new(),
             pipeline_suspended: false,
@@ -77,6 +77,8 @@ impl System {
                     dp.shift_pipeline_latches();
                     // Registers are read and then sent to the input latches of the ALU.
                     dp.route_regs_to_alu();
+                    // TODO determine when this callback should be run.
+                    self.cycle_ops[0](dp);
                 }
                 Phase::Two
             }
@@ -87,6 +89,8 @@ impl System {
                 if !self.pipeline_suspended {
                     // Route immediate to ALU.
                     dp.route_imm_to_alu();
+                    // TODO determine when this callback should be run.
+                    self.cycle_ops[1](dp);
                 }
 
                 // Route sources and immediate thru shifter.
@@ -110,6 +114,11 @@ impl System {
                     // Commit the result of the last instruction.
                     dp.commit();
                     self.pipeline_suspended = true;
+                } else {
+                    // Commit the result of the last instruction.
+                    dp.commit();
+                    // TODO determine when this callback should be run.
+                    self.cycle_ops[2](dp);
                 }
                 Phase::Four
             }
@@ -119,6 +128,8 @@ impl System {
                 self.pins_out.address = dp.get_out_address();
 
                 if !self.pipeline_suspended {
+                    // TODO determine when this callback should be run.
+                    self.cycle_ops[3](dp);
                     dp.decode();
                 }
                 // If the instruction was a load, shift the result if necessary.

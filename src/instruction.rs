@@ -19,7 +19,7 @@ use clock::Phase;
 use data_path::{Control, DataPath};
 use std::fmt;
 use std::fmt::LowerHex;
-use std::ops::Fn;
+use std::ops::Index;
 
 pub const SCC_LOC: u32 = 0x1000000;
 pub const DEST_LOC: u32 = 0x00F80000;
@@ -33,21 +33,15 @@ pub const SHORT_IMM_SIGNEXT_BITS: u32 = 0xFFFFE000;
 
 // Public functions.
 
-pub fn decode_opcode(instruction: u32) -> Control {}
-
 // Enums and structs.
 
-pub struct MicroOperation(fn(data_path: &mut DataPath) -> Self);
+pub struct InstructionCycle([fn(dp: &mut DataPath); 4]);
 
-pub fn noop(dp: &mut DataPath) -> MicroOperation {
-    MicroOperation::new(noop)
-}
+pub fn noop(dp: &mut DataPath) {}
 
 // Instructions change behavior of ALU, shifter, and for DIMM.
 // Also which register is loaded into the ALU (stores load Rd in bi).
 // Loads and stores suspend pipeline for 1 cycle.
-
-//pub fn add_begin(dp: &mut DataPath) -> MicroOperation {}
 
 /// Types of conditionals the RISC II supports.
 #[derive(PartialEq, Eq, Copy, Clone)]
@@ -592,14 +586,21 @@ impl fmt::Display for Conditional {
     }
 }
 
-impl MicroOperation {
-    pub fn new(func: fn(data_path: &mut DataPath) -> Self) -> Self {
-        Self { 0: func }
+impl InstructionCycle {
+    pub fn new(steps: [fn(dp: &mut DataPath); 4]) -> Self {
+        Self { 0: steps }
     }
 
-    // TODO temporary until implementing Fn becomes stable.
-    pub fn call(&self, data_path: &mut DataPath) -> Self {
-        self.0(data_path)
+    pub fn noop_cycle() -> Self {
+        Self { 0: [noop; 4] }
+    }
+}
+
+impl Index<usize> for InstructionCycle {
+    type Output = fn(dp: &mut DataPath);
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
     }
 }
 
