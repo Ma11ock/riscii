@@ -299,21 +299,20 @@ impl DataPath {
         let v = self.psw.get_cc_overflow();
         let z = self.psw.get_cc_zero();
         let c = self.psw.get_cc_carry();
-        // TODO in the book some of these XOR's are +, not sure what the difference
-        // is between one bit + and XOR.
+        // TODO in the book some of these OR's are +, not sure why.
         match self.rd2 & 0xf {
             // Greater than.
-            1 => !((n ^ v) ^ z),
+            1 => !((n ^ v) | z),
             // Less than or equal.
-            2 => (n ^ v) ^ z,
+            2 => (n ^ v) | z,
             // Greater than or equal to.
             3 => !(n ^ v),
             // Less than,
             4 => n ^ v,
             // Higher than
-            5 => !(!c ^ z),
+            5 => !(!c | z),
             // Lower than or same.
-            6 => !c ^ z,
+            6 => !c | z,
             // Lower than no carry.
             7 => !c,
             // Higher than no sign.
