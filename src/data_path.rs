@@ -26,6 +26,13 @@ use crate::shifter::Shifter;
 
 pub type MicroOp = fn(dp: &mut DataPath);
 
+pub struct SCCBits {
+    pub z: bool,
+    pub n: bool,
+    pub v: bool,
+    pub c: bool,
+}
+
 #[derive(Debug, Clone)]
 pub struct Control {
     pub long: bool,
@@ -416,6 +423,17 @@ impl DataPath {
 
     pub fn current_instruction_is_memory(&self) -> bool {
         self.control2.memory
+    }
+
+    pub fn add_step(&mut self) {
+        self.dst_latch = self.alu.add();
+    }
+
+    pub fn set_cc_codes_arithmetic(&mut self) {
+        if self.scc_flag3 {
+            self.psw.set_cc_zero(self.dst_latch == 0);
+            self.psw.set_cc_neg(self.dst_latch & SIGN_BIT_LOC != 0);
+        }
     }
 }
 

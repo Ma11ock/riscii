@@ -30,6 +30,7 @@ pub const SHORT_SOURCE_TYPE_LOC: u32 = 0x2000;
 pub const OPCODE_LOC: u32 = 0xFE000000;
 pub const SHORT_IMM_SIGN_LOC: u32 = 0x1000;
 pub const SHORT_IMM_SIGNEXT_BITS: u32 = 0xFFFFE000;
+pub const SIGN_BIT_LOC: u32 = 0x80000000;
 
 // Public functions.
 
