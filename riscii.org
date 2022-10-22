@@ -1,0 +1,95 @@
+#+TITLE: RISC II documentation
+#+AUTHOR: Ryan Jeffrey
+#+EMAIL: ryan@ryanmj.xyz
+#+OPTIONS: num:nil
+
+bibliography:refer.bib
+
+* Instructions
+There are three two basic instruction formats.
+| Instruction | Operation                                                  | Format | Conditional |
+|-------------+------------------------------------------------------------+--------+-------------|
+| *calli*     | CWP ← (CWP - 1) MOD 8, rd ← LSTPC, TODO                    | Short  |             |
+| *getlpc*    | rd ← LSTPC                                                 | Short  |             |
+| *putpsw*    | PSW ← rs1 + shortSource2                                   | Short  |             |
+| *reti*      | CWP ← (CWP + 1) MOD 8, I ← 1                               | Short  | [ X ]       |
+| getpsw      | rd ← PSW                                                   | Short  |             |
+| callx       | CWP ← (CWP - 1) MOD 8, rd ← PC, NXTPC ← rs1 + shortSource2 | Short  |             |
+| callr       | CWP ← (CWP - 1) MOD 8, rd ← PC, NXTPC ← PC + imm19         | Long   |             |
+| jmpx        | NXTPC ← rs1 + shortShource2                                | Short  | [ X ]       |
+| jmpr        | NXTPC ← PC + imm19                                         | Long   | [ X ]       |
+| ret         | CWP ← (CWP + 1) MOD 8, NXTPC ← rs1 + shortSource2          | Short  | [ X ]       |
+| sll         | rd ← rs1 << shortSource2                                   | Short  |             |
+| srl         | rd ← rs1 >> shortSource2                                   | Short  |             |
+| sra         | rd ← rs1 >> shortSource2                                   | Short  |             |
+| ldhi        | rd ← imm19 << 13                                           | Long   |             |
+| and         | rd ← rs1 & shortSource2                                    | Short  |             |
+| or          | rd ← rs1 ¦ shortSource2                                    | Short  |             |
+| xor         | rd ← rs1 ⊕ shortSource2                                    | Short  |             |
+| add         | rd ← rs1 + shortSource2                                    | Short  |             |
+| addc        | rd ← rs1 + shortSource2 + C                                | Short  |             |
+| sub         | rd ← rs1 - shortSource2                                    | Short  |             |
+| subc        | rd ← rs1 - shortSource2 + C                                | Short  |             |
+| subi        | rd ← shortSource2 - rs1                                    | Short  |             |
+| subci       | rd ← shortSource2 - rs1 + C                                | Short  |             |
+| ldxw        | rd ← M[rs1 + shortSource2]                                 | Short  |             |
+| ldrw        | rd ← M[PC + imm19]                                         | Long   |             |
+| lxhu        | rd ← M[rs1 + shortSource2] & 0xffff                        | Short  |             |
+| lrhu        | rd ← M[PC + imm19] & 0xffff                                | Long   |             |
+| lxhs        | rd ← sign_ext(M[rs1 + shortSource2] & 0xffff)              | Short  |             |
+| lrhs        | rd ← sign_ext(M[PC + imm19] & 0xffff)                      | Long   |             |
+| lxbu        | rd ← M[rs1 + shortSource2] & 0xff                          | Short  |             |
+| lrbu        | rd ← M[PC + imm19] & 0xff                                  | Long   |             |
+| lxbs        | rd ← sign_ext(M[rs1 + shortSource2] & 0xff)                | Short  |             |
+| lrbs        | rd ← sign_ext(M[PC + imm19] & 0ff)                         | Long   |             |
+| stxw        | M[rs1 + shortSource1] ← rd                                 | Short  |             |
+| strw        | M[PC + imm19] ← rd                                         | Long   |             |
+| stxh        | M[rs1 + shortSource1] ← align(rd & 0xffff)                 | Short  |             |
+| strh        | M[PC + imm19] ← align(rd & 0xffff)                         | Long   |             |
+| stxb        | M[rs1 + shortSource1] ← align(rd & 0xff)                   | Short  |             |
+| strb        | M[PC + imm19] ← align(rd & 0xff)                           | Long   |             |
+** sign_ext()
+Sign extend the value to 32 bits.
+** align()
+Align the value according to the memory address.
+
+| Value | 00    |    01 | 10    |    11 |
+|-------+-------+-------+-------+-------|
+| Word  | [ X ] |       |       |       |
+| Short | [ X ] |       | [ X ] |       |
+| Byte  | [ X ] | [ X ] | [ X ] | [ X ] |
+
+
+
+
+* Registers
+The RISC II has 138 general purpose registers and an additional 5
+special registers used for internal state.
+** Register windows
+<<sec:wins>> The RISC II uses an overlapping window stack system for
+its general purpose registers. There are 10 global registers available
+to all windows at all times, 10 local registers available only to the
+current window, 6 "in" register available to the current window and
+the previous window (as the previous window's out registers), and 6
+"out" registers available to the current window and the next window
+(as the next window's in registers) [[Parencites:&katevenis83][p. 54-56]]. There are 8 windows in
+total [[parencite:&katevenis83][p. 179]]. When a function is called the special CWP
+register[[sec:spec]] is incremented and the system moves up to the next
+register window. If the system runs out of register windows on a
+function call it must flush the oldest window(s) to memory and then
+restore them when the current function returns.
+
+** Special registers:
+<<sec:spec>>
+- *PC*: The program counter. Holds the address of the current instruction being executed. Needed for PC-relative instructions [[parencite:&katevenis83][p. 88]].
+- *NXTPC*: Next program counter. Holds the address of the next
+  instruction to be executed. Useful because of RISC II's delayed
+  branching method [[parencite:&katevenis83][p. 88]].
+- *LSTPC*: Last program counter. What PC was during the execution of
+  the last instruction. Used for restoring from a trap/interrupt
+  [[parencite:&katevenis83][p. 88]].
+- *CWP*: Current window pointer[[sec:wins]]. The number of windows on the
+  window stack (does not exceed 8).
+- *SWP*: Saved window pointer[[sec:wins]]. Index of the youngest window
+  saved in memory
+
