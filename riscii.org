@@ -1,95 +1,349 @@
 #+TITLE: RISC II documentation
 #+AUTHOR: Ryan Jeffrey
 #+EMAIL: ryan@ryanmj.xyz
-#+OPTIONS: num:nil
+#+STARTUP: align
+#+STARTUP: shrink
+#+OPTIONS: toc:2 
+#+OPTIONS: tex:t
 
-bibliography:refer.bib
+* What?
+The RISCII was among the first processors to be made with the design
+concept of Reduced Instruction Set Computing, or RISC. Given that most
+processors today are RISC-based it is a historically very important piece of
+hardware which is why I was so confused when I found little in the way
+of documentation on the project. [[https://web.archive.org/web/20070930184913/http://cs.swan.ac.uk/~csandy/cs-323/notes/0607.cs-323005.html][This page]][fn::I found an error on
+this page (unless I misunderstand somehting): it mentions that the
+RISCII had no virtual memory, but Katevenis' thesis mentions an MMU]
+was one of few technical descriptions of the RISCII I could find and
+it served as inspiration for this project. This document is a
+description of the RISCII, and should provide enough information to
+write an emulator.  The RISCII was designed at UC Berkeley by students
+Manolis Katevenis and Robert Sherburne under professors David
+Patterson and Carlo Séquin and was completed in 1983
+[fn::https://people.eecs.berkeley.edu/~pattrsn/Arch/prototypes2.html].
 
+This document is essentially a heavily abridged version of chapters 3,
+4, and the appendix of Katevenis' thesis[fn::ISBN-13:9780262111034].
+
+* The Concept of RISC
+The concept of RISC was created by David Patterson around the
+year 1980. It was based on the premise of creating a CPU architecture
+that had as few instructions as possible and as few instruction
+formats as possible as a means to simplify CPU design. This idea was
+inspired by observations made by Andrew S. Tanenbaum (among others)
+that showed that most CPU instructions were not used in a typical computer
+program. The benefits of a simpler architecture with a limited amount of instructions
+would be more efficient use of CPU die space and the elimination of microcode.
+
+The Berkeley RISC project went about implementing these ideas with the following
+methods:
+
+- All instructions are the same length (32 bits). This simplifies the fetch and decode steps of a typical CPU pipeline.
+- Instructions are register-to-register. This means that an average
+  instruction will be of the form =register ← register <operation>
+  register=. This is opposed to traditional CPU design, which allows
+  instructions like =register ← M[x] + register=, or =M[x] ← M[x] +
+  register= among other formats. The exceptions to this are load and
+  store instructions, which move data to/from registers to/from
+  memory.
+- Only two addressing modes: PC relative and absolute. There are no
+  pre/post increment/decrement instructions.
+- All instructions execute in a single cycle (except for loads and stores).
+
+RISCs were also implemented with high level languages (namely C) in
+mind, which is why RISCII lacks certain instructions, e.g. bit
+rotation, since few HLLs support such features[fn::Modern RISCs like
+ARM support bit rotation in particular due to its usefullness in
+cryptography].
+  
 * Instructions
-There are three two basic instruction formats.
-| Instruction | Operation                                                  | Format | Conditional |
-|-------------+------------------------------------------------------------+--------+-------------|
-| *calli*     | CWP ← (CWP - 1) MOD 8, rd ← LSTPC, TODO                    | Short  |             |
-| *getlpc*    | rd ← LSTPC                                                 | Short  |             |
-| *putpsw*    | PSW ← rs1 + shortSource2                                   | Short  |             |
-| *reti*      | CWP ← (CWP + 1) MOD 8, I ← 1                               | Short  | [ X ]       |
-| getpsw      | rd ← PSW                                                   | Short  |             |
-| callx       | CWP ← (CWP - 1) MOD 8, rd ← PC, NXTPC ← rs1 + shortSource2 | Short  |             |
-| callr       | CWP ← (CWP - 1) MOD 8, rd ← PC, NXTPC ← PC + imm19         | Long   |             |
-| jmpx        | NXTPC ← rs1 + shortShource2                                | Short  | [ X ]       |
-| jmpr        | NXTPC ← PC + imm19                                         | Long   | [ X ]       |
-| ret         | CWP ← (CWP + 1) MOD 8, NXTPC ← rs1 + shortSource2          | Short  | [ X ]       |
-| sll         | rd ← rs1 << shortSource2                                   | Short  |             |
-| srl         | rd ← rs1 >> shortSource2                                   | Short  |             |
-| sra         | rd ← rs1 >> shortSource2                                   | Short  |             |
-| ldhi        | rd ← imm19 << 13                                           | Long   |             |
-| and         | rd ← rs1 & shortSource2                                    | Short  |             |
-| or          | rd ← rs1 ¦ shortSource2                                    | Short  |             |
-| xor         | rd ← rs1 ⊕ shortSource2                                    | Short  |             |
-| add         | rd ← rs1 + shortSource2                                    | Short  |             |
-| addc        | rd ← rs1 + shortSource2 + C                                | Short  |             |
-| sub         | rd ← rs1 - shortSource2                                    | Short  |             |
-| subc        | rd ← rs1 - shortSource2 + C                                | Short  |             |
-| subi        | rd ← shortSource2 - rs1                                    | Short  |             |
-| subci       | rd ← shortSource2 - rs1 + C                                | Short  |             |
-| ldxw        | rd ← M[rs1 + shortSource2]                                 | Short  |             |
-| ldrw        | rd ← M[PC + imm19]                                         | Long   |             |
-| lxhu        | rd ← M[rs1 + shortSource2] & 0xffff                        | Short  |             |
-| lrhu        | rd ← M[PC + imm19] & 0xffff                                | Long   |             |
-| lxhs        | rd ← sign_ext(M[rs1 + shortSource2] & 0xffff)              | Short  |             |
-| lrhs        | rd ← sign_ext(M[PC + imm19] & 0xffff)                      | Long   |             |
-| lxbu        | rd ← M[rs1 + shortSource2] & 0xff                          | Short  |             |
-| lrbu        | rd ← M[PC + imm19] & 0xff                                  | Long   |             |
-| lxbs        | rd ← sign_ext(M[rs1 + shortSource2] & 0xff)                | Short  |             |
-| lrbs        | rd ← sign_ext(M[PC + imm19] & 0ff)                         | Long   |             |
-| stxw        | M[rs1 + shortSource1] ← rd                                 | Short  |             |
-| strw        | M[PC + imm19] ← rd                                         | Long   |             |
-| stxh        | M[rs1 + shortSource1] ← align(rd & 0xffff)                 | Short  |             |
-| strh        | M[PC + imm19] ← align(rd & 0xffff)                         | Long   |             |
-| stxb        | M[rs1 + shortSource1] ← align(rd & 0xff)                   | Short  |             |
-| strb        | M[PC + imm19] ← align(rd & 0xff)                           | Long   |             |
-** sign_ext()
+All RISCII instructions are 32 bits long. Each contains an opcode
+(first seven bits), then a 1 bit [[sec:cc][SCC flag]], then a five bit destination
+register name. There are two instruction formats for the last 19 bits
+described below. For conditional instructions the destination register is
+replaced with a four bit [[sec:conds][conditoinal code]].
+
+If the SCC bit of an instruction is HIGH,
+then it will set the SCC bit according its opcode. If the SCC bit is LOW it will
+ignore the condition codes.
+
+** Short-Immediate format
+This format adds a 5 bit source register name and a second data source
+that can either be a 13 bit /signed/ immediate or a another five bit
+register name. The 14th bit is the /immediate bit/ which is high if
+shortSource2 is an immediate or low if a register.
+
+#+CAPTION: Format of a short-immediate instruction.
+| 7 bits | 1 bit | 5 bits | 5 bits | 14 bits      |
+|--------+-------+--------+--------+--------------|
+| opcode | SCC   | DEST   | rs1    | shortSource2 |
+
+
+#+CAPTION: shortSource2 format for register
+| 13th bit (IMM bit) | Bits 12-5 | Bits 4-0 |
+|--------------------+-----------+----------|
+|                  0 | <garbage> | rs2      |
+
+
+#+CAPTION: shortSource2 format for immediate
+| 13th bit (IMM bit) | Bits 12-0               |
+|--------------------+-------------------------|
+|                  1 | 13 bit signed immediate |
+Where the MSB of the immediate is the sign bit.
+
+Where DEST is either a five-bit name of a [[sec:wins][destination register]] or a four bit [[sec:conds][conditional code]].
+
+** Long-Immediate format
+This format uses all the remaining 19 bits as an /unsigned/ immediate.
+#+CAPTION: Format of a long-immediate instruction.
+| 7 bits | 1 bit | 5 bits | 19 bits |
+|--------+-------+--------+---------|
+| opcode | SCC   | DEST   | imm19   |
+
+Where DEST is either a five-bit name of a [[sec:wins][destination register]] or a four bit [[sec:conds][conditional code]].
+
+** Basic instruction information
+| Instruction | Operation                                                    | Format | Conditional |
+|-------------+--------------------------------------------------------------+--------+-------------|
+| [[sec:calli][*calli*]]     | =CWP ← (CWP - 1) MOD 8, rd ← LSTPC, TODO=                    | Short  |             |
+| [[sec:getlpc][*getlpc*]]    | =rd ← LSTPC=                                                 | Short  |             |
+| [[sec:putpsw][*putpsw*]]    | =PSW ← rs1 + shortSource2=                                   | Short  |             |
+| [[sec:reti][*reti*]]      | =CWP ← (CWP + 1) MOD 8, I ← 1=                               | Short  | ✅          |
+| [[sec:getpsw][getpsw]]      | =rd ← PSW=                                                   | Short  |             |
+| [[sec:callx][callx]]       | =CWP ← (CWP - 1) MOD 8, rd ← PC, NXTPC ← rs1 + shortSource2= | Short  |             |
+| [[sec:callr][callr]]       | =CWP ← (CWP - 1) MOD 8, rd ← PC, NXTPC ← PC + imm19=         | Long   |             |
+| [[sec:jmpx][jmpx]]        | =NXTPC ← rs1 + shortShource2=                                | Short  | ✅          |
+| [[sec:jmpr][jmpr]]        | =NXTPC ← PC + imm19=                                         | Long   | ✅          |
+| [[sec:ret][ret]]         | =CWP ← (CWP + 1) MOD 8, NXTPC ← rs1 + shortSource2=          | Short  | ✅          |
+| [[sec:sll][sll]]         | =rd ← rs1 << shortSource2=                                   | Short  |             |
+| [[sec:srl][srl]]         | =rd ← rs1 >> shortSource2=                                   | Short  |             |
+| [[sec:sra][sra]]         | =rd ← rs1 >> shortSource2=                                   | Short  |             |
+| [[sec:ldhi][ldhi]]        | =rd ← imm19 << 13=                                           | Long   |             |
+| [[sec:and][and]]         | =rd ← rs1 & shortSource2=                                    | Short  |             |
+| [[sec:or][or]]          | =rd ← rs1 ¦ shortSource2=                                    | Short  |             |
+| [[sec:xor][xor]]         | =rd ← rs1 ⊕ shortSource2=                                    | Short  |             |
+| [[sec:add][add]]         | =rd ← rs1 + shortSource2=                                    | Short  |             |
+| [[sec:addc][addc]]        | =rd ← rs1 + shortSource2 + C=                                | Short  |             |
+| [[sec:sub][sub]]         | =rd ← rs1 - shortSource2=                                    | Short  |             |
+| [[sec:subc][subc]]        | =rd ← rs1 - shortSource2 + C=                                | Short  |             |
+| [[sec:subi][subi]]        | =rd ← shortSource2 - rs1=                                    | Short  |             |
+| [[sec:subci][subci]]       | =rd ← shortSource2 - rs1 + C=                                | Short  |             |
+| [[sec:ldxw][ldxw]]        | =rd ← M[rs1 + shortSource2]=                                 | Short  |             |
+| [[sec:ldrw][ldrw]]        | =rd ← M[PC + imm19]=                                         | Long   |             |
+| [[sec:lxhu][lxhu]]        | =rd ← M[rs1 + shortSource2] & 0xffff=                        | Short  |             |
+| [[sec:lrhu][lrhu]]        | =rd ← M[PC + imm19] & 0xffff=                                | Long   |             |
+| [[sec:lxhs][lxhs]]        | =rd ← sign_ext(M[rs1 + shortSource2] & 0xffff)=              | Short  |             |
+| [[sec:lrhs][lrhs]]        | =rd ← sign_ext(M[PC + imm19] & 0xffff)=                      | Long   |             |
+| [[sec:lxbu][lxbu]]        | =rd ← M[rs1 + shortSource2] & 0xff=                          | Short  |             |
+| [[sec:lrbu][lrbu]]        | =rd ← M[PC + imm19] & 0xff=                                  | Long   |             |
+| [[sec:lxbs][lxbs]]        | =rd ← sign_ext(M[rs1 + shortSource2] & 0xff)=                | Short  |             |
+| [[sec:lrbs][lrbs]]        | =rd ← sign_ext(M[PC + imm19] & 0ff)=                         | Long   |             |
+| [[sec:stxw][stxw]]        | =M[rs1 + shortSource1] ← rd=                                 | Short  |             |
+| [[sec:strw][strw]]        | =M[PC + imm19] ← rd=                                         | Long   |             |
+| [[sec:stxh][stxh]]        | =M[rs1 + shortSource1] ← align(rd & 0xffff)=                 | Short  |             |
+| [[sec:strh][strh]]        | =M[PC + imm19] ← align(rd & 0xffff)=                         | Long   |             |
+| [[sec:stxb][stxb]]        | =M[rs1 + shortSource1] ← align(rd & 0xff)=                   | Short  |             |
+| [[sec:strb][strb]]        | =M[PC + imm19] ← align(rd & 0xff)=                           | Long   |             |
+
+*Bold* name means priveleged instruction.
+
+*** =sign_ext()=
 Sign extend the value to 32 bits.
-** align()
-Align the value according to the memory address.
+*** =align()=
+Align (left shift) the value according to the memory address.
+** Detailed instruction information
+*** =calli= Call Interrupt
+<<sec:calli>>
+*** =getlpc= Get Last Program Counter
+<<sec:getlpc>>
+*** =putpsw= Put Processor Status Word
+<<sec:putpsw>>
+*** =reti= Return from interrupt
+<<sec:reti>>
+*** =getpsw= Get Processor Status Word
+<<sec:getpsw>>
+*** =callx= Call absolute
+<<sec:callx>>
+*** =callr= Call relative
+<<sec:callr>>
+*** =jmpx= Jump absolute
+<<sec:jmpx>>
+*** =jmpr= Jump relative
+<<sec:jmpr>>
+*** =ret= Return from subroutine
+<<sec:ret>>
+*** =sll= Shift left logical
+<<sec:sll>>
+*** =srl= Shift right logical
+<<sec:srl>>
+*** =sra= Shift right arithmetic
+<<sec:sra>>
+*** =ldhi= Load high bits
+<<sec:ldhi>>
+*** =and= Bitwise AND
+<<sec:and>>
+*** =or= Bitwise OR
+<<sec:or>>
+*** =xor= Bitwise XOR
+<<sec:xor>>
+*** =add= Add
+<<sec:add>>
+*** =addc= Add with carry
+<<sec:addc>>
+*** =sub= Subtract
+<<sec:sub>>
+*** =subc= Subtract with carry
+<<sec:subc>>
+*** =subi= Subtract inverse
+<<sec:subi>>
+*** =subci= Subtract inverse with carry
+<<sec:subci>>
+*** =ldxw= Load word into register absolute
+<<sec:ldxw>>
+*** =ldrw= Load word into register relative
+<<sec:ldrw>>
+*** =lxhu= Load unsigned half word into register absolute
+<<sec:lxhu>>
+*** =lrhu= Load unsigned half word into register relative
+<<sec:lrhu>>
+*** =lxhs= Load signed half word into register absolute
+<<sec:lxhs>>
+*** =lrhs= Load signed half word into register relative
+<<sec:lrhs>>
+*** =lxbu= Load unsigned byte into register absolute
+<<sec:lxbu>>
+*** =lrbu= Load unsigned byte into register relative
+<<sec:lrbu>>
+*** =lxbs= Load signed byte into register absolute
+<<sec:lxbs>>
+*** =lrbs= Load signed byte into register relative
+<<sec:lrbs>>
+*** =stxw= Store word absolute
+<<sec:stxw>>
+*** =strw= Store word relative
+<<sec:strw>>
+*** =stxh= Store half word absolute
+<<sec:stxh>>
+*** =strh= Store half word relative
+<<sec:strh>>
+*** =stxb= Store byte absolute
+<<sec:stxb>>
+*** =strb= Store byte relative
+<<sec:strb>>
 
-| Value | 00    |    01 | 10    |    11 |
-|-------+-------+-------+-------+-------|
-| Word  | [ X ] |       |       |       |
-| Short | [ X ] |       | [ X ] |       |
-| Byte  | [ X ] | [ X ] | [ X ] | [ X ] |
+* Conditionals
+<<sec:conds>>
+| Code | Name                            | Operation                        |
+|------+---------------------------------+----------------------------------|
+| 0001 | Signed greater than             | $\overline{(N\oplus V) \vert Z}$ |
+| 0010 | Signed less than or equal to    | $(N\oplus V) \vert Z$            |
+| 0011 | Signed greater than or equal to | $\overline{N\oplus Z}$            |
+| 0100 | Signed less than                | $N\oplus Z$                      |
+| 0101 | Unsigned greater than           | $\overline{\overline{C} + Z}$      |
+| 0110 | Unsigned less than or equal     | $\overline{C} + Z$                |
+| 0111 | Unsigned less than              | $\overline{C}$                    |
+| 1000 | Unsigned greater than           | $C$                              |
+| 1001 | Positive (or zero)              | $\overline{N}$                    |
+| 1010 | Negative                        | $N$                              |
+| 1011 | Not equal                       | $\overline{Z}$                    |
+| 1100 | Equal                           | $Z$                              |
+| 1101 | No overflow                     | $\overline{V}$                    |
+| 1110 | Overflow                        | $V$                              |
+| 1111 | Always                          | 1                                |
 
 
+* The Clock
+<<sec:clock>>
 
 
-* Registers
-The RISC II has 138 general purpose registers and an additional 5
-special registers used for internal state.
-** Register windows
-<<sec:wins>> The RISC II uses an overlapping window stack system for
-its general purpose registers. There are 10 global registers available
-to all windows at all times, 10 local registers available only to the
-current window, 6 "in" register available to the current window and
-the previous window (as the previous window's out registers), and 6
-"out" registers available to the current window and the next window
-(as the next window's in registers) [[Parencites:&katevenis83][p. 54-56]]. There are 8 windows in
-total [[parencite:&katevenis83][p. 179]]. When a function is called the special CWP
-register[[sec:spec]] is incremented and the system moves up to the next
-register window. If the system runs out of register windows on a
-function call it must flush the oldest window(s) to memory and then
-restore them when the current function returns.
+* Memory addressing
 
-** Special registers:
-<<sec:spec>>
-- *PC*: The program counter. Holds the address of the current instruction being executed. Needed for PC-relative instructions [[parencite:&katevenis83][p. 88]].
+When loading or storing, the RISC II requires that the memory address be aligned
+according to the type that is being loaded/stored. Words addresses must be divisible by 4,
+short addresses must be divisible by 2, and bytes can have any address. An invalid alignment
+will result in a TRAP.
+
+Alignment requirements.
+
+Below is a table that shows what addresses are valid for each type.
+The four rightmost columns represent the last two bits of the memory address being accessed.
+Any blank value indicates an alignment error.
+
+| Value | 00 | 01 | 10 | 11 |
+|-------+----+----+----+----|
+| Word  | ✅ |    |    |    |
+| Short | ✅ |    | ✅ |    |
+| Byte  | ✅ | ✅ | ✅ | ✅ |
+
+
+* Data bus
+** BAR (Byte Address Register)
+<<sec:bar>>
+Contains the two least significant bits of the memory address currently being accessed.
+
+* Control Unit
+<<sec:control>>
+
+* User visible State
+** Condition code bits
+<<sec:cc>>
+
+The RISCII has four condition codes, each 1 bit. These codes are used for determining
+branches. Each of the conditions below rely on the SCC bit of the mentioned instruction
+to be HIGH.
+- =C= Carry bit. HIGH if the last addition caused a carry to the 33rd
+  bit, or if the last subtraction did NOT have a borrow from the 33rd
+  bit.
+- =V= Overflow bit. HIGH if the last addition or subtraction caused a
+  signed overflow (the sign bit was changed when the operation should
+  have resulted in a change in sign).
+- =N= Negative bit. HIGH if the destination of the last instruction
+  has a value that is less than 0 (the sign bit is HIGH).
+- =Z= Zero bit. HIGH if the destination of the last instruction has a
+  value of 0.
+  
+** Register windows and General Purpose Registers
+<<sec:wins>> The RISC II has 138 general purpose registers separated
+by [[sec:wins][register windows]], each 32 bits.  When a value is loaded into a
+register it is sign extended to 32 bits.
+
+The RISC II uses an overlapping window stack system for its general
+purpose registers. There are 10 global registers available to all
+windows at all times, 10 local registers available only to the current
+window, 6 "in" register available to the current window and the
+previous window (as the previous window's out registers), and 6 "out"
+registers available to the current window and the next window (as the
+next window's in registers). There are 8 windows in total When a
+function is called the special CWP register[[sec:spec]] is incremented and
+the system moves up to the next register window. If the system runs
+out of register windows on a function call it must flush the oldest
+window(s) to memory and then restore them when the current function
+returns.
+
+** Special registers
+<<sec:spec>> The RISCII's pipeline also has five special registers
+used for internal state.
+- *PC*: The program counter. Holds the address of the current
+  instruction being executed. Needed for PC-relative instructions.
 - *NXTPC*: Next program counter. Holds the address of the next
   instruction to be executed. Useful because of RISC II's delayed
-  branching method [[parencite:&katevenis83][p. 88]].
+  branching method.
 - *LSTPC*: Last program counter. What PC was during the execution of
-  the last instruction. Used for restoring from a trap/interrupt
-  [[parencite:&katevenis83][p. 88]].
+  the last instruction. Used for restoring from a trap/interrupt.
 - *CWP*: Current window pointer[[sec:wins]]. The number of windows on the
-  window stack (does not exceed 8).
+  window stack (3 bits).
 - *SWP*: Saved window pointer[[sec:wins]]. Index of the youngest window
-  saved in memory
+  saved in memory (3 bits).
 
+
+* Unanswered Questions
+This section contains questions relating to the RISCII design that have
+not yet been answered.
+- MMU and virtual memory. It is mentioned in Katevenis' paper but not
+  described.
+- Destination latch for the overflow and carry bits. The bits are not
+  written into the PSW until the next cycle, so there has to be a
+  place for these values to exist before their writing. It is not
+  described in Katevenis' thesis.
+- Endianess. Some parts of the thesis suggest Big Endianess, but it is
+  not explicitly stated.
