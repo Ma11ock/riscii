@@ -3,8 +3,6 @@
 #+EMAIL: ryan@ryanmj.xyz
 #+STARTUP: align
 #+STARTUP: shrink
-#+OPTIONS: toc:2 
-#+OPTIONS: tex:t
 
 * What?
 The RISCII was among the first processors to be made with the design
@@ -12,7 +10,7 @@ concept of Reduced Instruction Set Computing, or RISC. Given that most
 processors today are RISC-based it is a historically very important piece of
 hardware which is why I was so confused when I found little in the way
 of documentation on the project. [[https://web.archive.org/web/20070930184913/http://cs.swan.ac.uk/~csandy/cs-323/notes/0607.cs-323005.html][This page]][fn::I found an error on
-this page (unless I misunderstand somehting): it mentions that the
+this page (unless I misunderstand something): it mentions that the
 RISCII had no virtual memory, but Katevenis' thesis mentions an MMU]
 was one of few technical descriptions of the RISCII I could find and
 it served as inspiration for this project. This document is a
@@ -38,7 +36,8 @@ would be more efficient use of CPU die space and the elimination of microcode.
 The Berkeley RISC project went about implementing these ideas with the following
 methods:
 
-- All instructions are the same length (32 bits). This simplifies the fetch and decode steps of a typical CPU pipeline.
+- All instructions are the same length (32 bits). This simplifies the
+  fetch and decode steps of a typical CPU pipeline.
 - Instructions are register-to-register. This means that an average
   instruction will be of the form =register ← register <operation>
   register=. This is opposed to traditional CPU design, which allows
@@ -48,13 +47,42 @@ methods:
   memory.
 - Only two addressing modes: PC relative and absolute. There are no
   pre/post increment/decrement instructions.
-- All instructions execute in a single cycle (except for loads and stores).
+- All instructions execute in a single cycle (except for loads and
+  stores).
 
 RISCs were also implemented with high level languages (namely C) in
 mind, which is why RISCII lacks certain instructions, e.g. bit
 rotation, since few HLLs support such features[fn::Modern RISCs like
 ARM support bit rotation in particular due to its usefullness in
 cryptography].
+
+* Pipeline
+
+The RISCII has a three stage pipeline: fetch instruction, execute
+instruction, and commit result.
+** Fetch
+During the fetch step the CPU loads the next instruction, which is at
+=M[PC]=.  The loaded instruction then immediately decoded, see [[sec:control][control]]
+for details.
+** Execute
+The most important step. The previously fetched instruction has its
+arguments routed from the [[sec:wins][register file]] or the immediate latch to the
+ALU or the shifter, then finally to the destination latch. If the
+instruction is a load/store then the pipeline is suspended for one
+cycle as the memory operation finishes.
+** Commit
+User-visible state does not change until this step in the
+pipeline. The result of the previous instruction is kept in the
+destination latch until $\phi_3$, when it is finally written to the
+destination register. If a data dependency is detected (i.e. a source
+register of the current instruction was the destination of the last
+instruction) then the CPU must forward that source from the
+destination latch instead of its actual source.
+** Pipeline suspension
+During a load/store instruction the pipeline is suspended. The next
+instruction is not fetched, and writing to the destination latch is
+delayed until $\phi_3$ of the next cycle. As a result, loads and
+stores take an extra cycle to complete.
   
 * Instructions
 All RISCII instructions are 32 bits long. Each contains an opcode
@@ -105,7 +133,7 @@ Where DEST is either a five-bit name of a [[sec:wins][destination register]] or 
 ** Basic instruction information
 | Instruction | Operation                                                    | Format | Conditional |
 |-------------+--------------------------------------------------------------+--------+-------------|
-| [[sec:calli][*calli*]]     | =CWP ← (CWP - 1) MOD 8, rd ← LSTPC, TODO=                    | Short  |             |
+| [[sec:calli][*calli*]]     | =CWP ← (CWP - 1) MOD 8, rd ← LSTPC, PC ← 0x80000000=         | Short  |             |
 | [[sec:getlpc][*getlpc*]]    | =rd ← LSTPC=                                                 | Short  |             |
 | [[sec:putpsw][*putpsw*]]    | =PSW ← rs1 + shortSource2=                                   | Short  |             |
 | [[sec:reti][*reti*]]      | =CWP ← (CWP + 1) MOD 8, I ← 1=                               | Short  | ✅          |
@@ -154,82 +182,806 @@ Align (left shift) the value according to the memory address.
 ** Detailed instruction information
 *** =calli= Call Interrupt
 <<sec:calli>>
+**** Description
+Transfer control to interrupt handler
+
+Operation:
+
+=rd ← LSTPC=
+=CWP ← CWP - 1=
+=PC ← 0x80000000=
+
+**** Processor Status Word
+| CWP | SWP | I | S | P | Z | N | V | C |
+|-----+-----+---+---+---+---+---+---+---|
+| -   | -   | - | - | - | - | - | - | - |
+
+**** Notes
+- Privileged instruction
+- =rs1= and =shortsource2= fields are discarded
+- NOT transparent to interrupts
+- Meant ONLY for use by the interrupt mechanism
+- If interrupts are enabled an overflow trap may occur TODO
+
 *** =getlpc= Get Last Program Counter
 <<sec:getlpc>>
+**** Description
+Get the last program counter and place it into =rd=.
+
+Operation:
+
+=rd ← LSTPC=
+**** Processor Status Word
+| CWP | SWP | I | S | P | Z  | N  | V | C |
+|-----+-----+---+---+---+----+----+---+---|
+| -   | -   | - | - | - | ✅ | ✅ | - | - |
+
+- *Z* =LSTPC ≡ 0=
+- *N* =LSTPC<31>=
+**** Notes
+- Privileged instruction
+- =rs1= and =shortsource2= fields are discarded
+- NOT transparent to interrupts
+
 *** =putpsw= Put Processor Status Word
 <<sec:putpsw>>
+**** Description
+Set the [[sec:psw][processor status word]]. 
+Operation:
+
+=PSW ← [rs1 + shortSource2]<12:0>=
+**** Processor Status Word
+| CWP | SWP | I  | S  | P  | Z  | N  | V  | C  |
+|-----+-----+----+----+----+----+----+----+----|
+| ✅  | ✅  | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+- *CWP* [rs1 + shortSource2]<12:10>
+- *SWP* [rs1 + shortSource2]<9:7>
+- *I* [rs1 + shortSource2]<6>
+- *S* [rs1 + shortSource2]<5>
+- *P* [rs1 + shortSource2]<4>
+- *Z* [rs1 + shortSource2]<3>
+- *N* [rs1 + shortSource2]<2>
+- *V* [rs1 + shortSource2]<1>
+- *C* [rs1 + shortSource2]<0>
+
+**** Notes
+- Privileged instruction
+- SCC bit MUST be OFF
+- The following instruction must NOT be a call or return, and must NOT set CC's
+- New PSW is NOT in effect until after the next cycle
+- =rd= is discarded
+
 *** =reti= Return from interrupt
 <<sec:reti>>
+
+**** Description
+Transfer control from interrupt.
+
+Operation:
+
+Iff =cond= is true, =NXTPC ← rs1 + shortSource2=, calculate effective address
+=CWP ← CWP + 1=
+=I ← 1=
+=S ← P=
+
+If alignment is bad (=eff-address<1:0> ≠ 00=), trap to address 0x80000000
+
+**** Processor Status Word
+| CWP | SWP | I  | S  | P | Z | N | V | C |
+|-----+-----+----+----+---+---+---+---+---|
+| -   | -   | ✅ | ✅ | - | - | - | - | - |
+
+- *I* Set to 1, regardless of SCC
+- *S* Set to P, regardless of SCC
+
+**** Notes
+- The rs1 and rs2 are read from the OLD window
+- TODO interrupt
+  
 *** =getpsw= Get Processor Status Word
 <<sec:getpsw>>
+
+**** Description
+Get the processor status word.
+
+Operation:
+
+=rd ← (-1)<31:13> & PSW<12:0>=
+
+**** Processor Status Word
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Set to 0
+- *C* Set to 0
+
+**** Notes
+- Previous instruction MUST have its SCC-bit OFF
+- =shortSource2= MUST be register 0 (and NOT an immediate)
+- =rs1= is discarded
+
 *** =callx= Call absolute
 <<sec:callx>>
+
+**** Description
+Transfer control to subroutine.
+
+Operation:
+
+=NXTPC ← rs1 + shortSource2=, calculate effective address
+=rd ← PC=
+=CWP ← CWP - 1=
+
+If alignment is bad (=eff-address<1:0> ≠ 00=), trap to address 0x80000000
+
+**** Processor Status Word
+SCC MUST be OFF, otherwise condition codes are garbage
+
+| CWP | SWP | I | S | P | Z | N | V | C |
+|-----+-----+---+---+---+---+---+---+---|
+| ✅  | -   | - | - | - | - | - | - | - |
+
+- *CWP* CWP - 1
+
+**** Notes
+- =rd= is in the NEW window
+- The saved PC is the PC of the call instruction
+- The rs1 and rs2 are read from the OLD window
+- =shortSource2= MUST be register 0 (and NOT an immediate)
+
+
 *** =callr= Call relative
 <<sec:callr>>
+
+**** Description
+Transfer control to subroutine.
+
+Operation:
+
+=NXTPC ← PC + imm19=, calculate effective address
+=rd ← PC=
+=CWP ← CWP - 1=
+
+If alignment is bad (=eff-address<1:0> ≠ 00=), trap to address 0x80000000
+
+**** Processor Status Word
+SCC MUST be OFF, otherwise condition codes are garbage
+
+| CWP | SWP | I | S | P | Z | N | V | C |
+|-----+-----+---+---+---+---+---+---+---|
+| ✅  | -   | - | - | - | - | - | - | - |
+
+- *CWP* CWP - 1
+
+**** Notes
+- =rd= is in the NEW window
+- The saved PC is the PC of the call instruction
+- =shortSource2= MUST be register 0 (and NOT an immediate)
+
 *** =jmpx= Jump absolute
 <<sec:jmpx>>
+
+**** Description
+Transfer control to memory address
+
+Operation:
+
+Iff =cond= is true, =NXTPC ← rs1 + shortSource2=, calculate effective address
+
+If alignment is bad (=eff-address<1:0> ≠ 00=), trap to address 0x80000000
+
+
+**** Processor Status Word
+SCC MUST be OFF, otherwise effective address is garbage,
+and condition codes are garbage
+
 *** =jmpr= Jump relative
 <<sec:jmpr>>
+
+**** Description
+Transfer control to memory address
+
+Operation:
+
+Iff =cond= is true, =NXTPC ← rs1 + shortSource2=, calculate effective address
+
+If alignment is bad (=eff-address<1:0> ≠ 00=), trap to address 0x80000000
+
+**** Processor Status Word
+SCC MUST be OFF, otherwise effective address is garbage,
+and condition codes are garbage
+
 *** =ret= Return from subroutine
 <<sec:ret>>
+
+**** Description
+Transfer control from subroutine
+
+Operation:
+
+Iff =cond= is true, =NXTPC ← rs1 + shortSource2=, calculate effective address
+=CWP ← CWP + 1=
+
+**** Processor Status Word
+SCC MUST be OFF, otherwise effective address is garbage,
+and condition codes are garbage
+| CWP | SWP | I | S | P | Z | N | V | C |
+|-----+-----+---+---+---+---+---+---+---|
+| ✅  | -   | - | - | - | - | - | - | - |
+
+- *CWP* CWP + 1
+
 *** =sll= Shift left logical
 <<sec:sll>>
+**** Description
+Shift left logical
+
+Operation:
+
+=rd ← rs1 << shortSource2=
+
+**** Processor Status Word
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Set to 0
+- *C* Set to 0
 *** =srl= Shift right logical
 <<sec:srl>>
+**** Description
+Shift right logical
+
+Operation:
+
+=rd ← rs1 >> shortSource2=, where =rs1= is unsigned
+
+**** Processor Status Word
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Set to 0
+- *C* Set to 0
 *** =sra= Shift right arithmetic
 <<sec:sra>>
-*** =ldhi= Load high bits
+**** Description
+Shift right arithmetic
+
+Operation:
+
+=rd ← rs1 >> shortSource2=, where =rs1= is signed
+
+**** Processor Status Word
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Set to 0
+- *C* Set to 0
+*** =ldhi= Load high bits immediate
 <<sec:ldhi>>
-*** =and= Bitwise AND
+**** Description
+Load immediate into top 19 bits of destination
+
+Operation:
+
+=rd ← imm19 << 13=, where =rs1= is signed
+
+**** Processor Status Word
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Set to 0
+- *C* Set to 0
+*** =and= AND
 <<sec:and>>
-*** =or= Bitwise OR
+**** Description
+Bitwise AND
+
+Operation:
+
+=rd ← rs1 & shortSource2=
+
+**** Processor Status Word
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Set to 0
+- *C* Set to 0
+*** =or= OR
 <<sec:or>>
-*** =xor= Bitwise XOR
+**** Description
+Bitwise OR
+
+Operation:
+
+=rd ← rs1 ¦ shortSource2=
+
+**** Processor Status Word
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Set to 0
+- *C* Set to 0
+*** =xor= XOR
 <<sec:xor>>
+**** Description
+Bitwise XOR
+
+Operation:
+
+=rd ← rs1 ⊕ shortSource2=
+
+**** Processor Status Word
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Set to 0
+- *C* Set to 0
 *** =add= Add
 <<sec:add>>
+**** Description
+Addition
+
+Operation:
+
+=rd ← rs1 + shortSource2=
+
+**** Processor Status Word
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Sign bit overwritten by addition
+- *C* Carry<31>to<32>
 *** =addc= Add with carry
 <<sec:addc>>
+**** Description
+Addition with carry
+
+Operation:
+
+=rd ← rs1 + shortSource2 + C=
+
+**** Processor Status Word
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Sign bit overwritten by addition
+- *C* Carry<31>to<32>
 *** =sub= Subtract
 <<sec:sub>>
+**** Description
+Subtract
+
+Operation:
+
+=rd ← rs1 - shortSource2=
+
+**** Processor Status Word
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Sign bit overwritten by subtraction
+- *C* Not(Borrow<32> to <31>)
 *** =subc= Subtract with carry
 <<sec:subc>>
+**** Description
+Subtract with carry
+
+Operation:
+
+=rd ← rs1 - shortSource2 + C=
+
+**** Processor Status Word
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Sign bit overwritten by subtraction
+- *C* Not(Borrow<32> to <31>)
 *** =subi= Subtract inverse
 <<sec:subi>>
+**** Description
+Subtract inverse
+
+Operation:
+
+=rd ← shortSource2 - rs1=
+
+**** Processor Status Word
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Sign bit overwritten by subtraction
+- *C* Not(Borrow<32> to <31>)
 *** =subci= Subtract inverse with carry
 <<sec:subci>>
+**** Description
+Subtract inverse with carry
+
+Operation:
+
+=rd ← shortSource2 - rs1 + C=
+
+**** Processor Status Word
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Sign bit overwritten by subtraction
+- *C* Not(Borrow<32> to <31>)
 *** =ldxw= Load word into register absolute
 <<sec:ldxw>>
+**** Description
+Load word into register from absolute memory address
+
+Operation:
+
+=eff_addr = rs1 + shortSource2, rd ← M[eff_addr]=
+
+If alignment is bad (=eff-address<1:0> ≠ 00=), trap to address 0x80000000
+
+**** Processor Status Word
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Set to 0
+- *C* Set to 0
 *** =ldrw= Load word into register relative
 <<sec:ldrw>>
+**** Description
+Load word into register from PC relative memory address
+
+Operation:
+
+=eff_addr = PC + imm19, rd ← M[eff_addr]=
+
+If alignment is bad (=eff-address<1:0> ≠ 00=), trap to address 0x80000000
+
+**** Processor Status Word
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Set to 0
+- *C* Set to 0
 *** =lxhu= Load unsigned half word into register absolute
 <<sec:lxhu>>
+**** Description
+Load unsigned half word into register from absolute memory address
+
+Operation:
+
+=eff_addr = rs1 + shortSource2, rd ← align(M[eff_addr]) & 0xffff=
+
+If alignment is bad (=eff-address<0> ≠ 0=), trap to address 0x80000000
+
+**** Processor Status Word
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Set to 0
+- *C* Set to 0
 *** =lrhu= Load unsigned half word into register relative
 <<sec:lrhu>>
+**** Description
+Load word into register from PC relative memory address
+
+Operation:
+
+=eff_addr = PC + imm19, rd ← align(M[eff_addr]) & 0xffff=
+
+If alignment is bad (=eff-address<0> ≠ 0=), trap to address 0x80000000
+**** Processor Status Word
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Set to 0
+- *C* Set to 0
 *** =lxhs= Load signed half word into register absolute
 <<sec:lxhs>>
+**** Description
+Load signed half word into register from absolute memory address and sign extend
+
+Operation:
+
+=eff_addr = rs1 + shortSource2, rd ← sign_extend(align(M[eff_addr]) & 0xffff)=
+
+If alignment is bad (=eff-address<0> ≠ 0=), trap to address 0x80000000
+
+**** Processor Status Word
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Set to 0
+- *C* Set to 0
 *** =lrhs= Load signed half word into register relative
 <<sec:lrhs>>
+**** Description
+Load signed half word into register from PC relative memory address and sign extend
+
+Operation:
+
+=eff_addr = PC + imm19, rd ← sign_extend(align(M[eff_addr]) & 0xffff)=
+
+If alignment is bad (=eff-address<0> ≠ 0=), trap to address 0x80000000
+
+**** Processor Status Word
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Set to 0
+- *C* Set to 0
 *** =lxbu= Load unsigned byte into register absolute
 <<sec:lxbu>>
+**** Description
+Load unsigned byte into register from absolute memory address
+
+Operation:
+
+=eff_addr = rs1 + shortSource2, rd ← align(M[eff_addr]) & 0xff=
+
+**** Processor Status Word
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Set to 0
+- *C* Set to 0
 *** =lrbu= Load unsigned byte into register relative
 <<sec:lrbu>>
+**** Description
+Load unsigned byte into register from absolute memory address
+
+Operation:
+
+=eff_addr = PC + imm19, rd ← align(M[eff_addr]) & 0xff=
+
+**** Processor Status Word
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Set to 0
+- *C* Set to 0
 *** =lxbs= Load signed byte into register absolute
 <<sec:lxbs>>
+**** Description
+Load signed byte into register from absolute memory address and sign extend
+
+Operation:
+
+=eff_addr = rs1 + shortSource2, rd ← sign_extend(align(M[eff_addr]) & 0xff)=
+
+**** Processor Status Word
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Set to 0
+- *C* Set to 0
 *** =lrbs= Load signed byte into register relative
 <<sec:lrbs>>
+**** Description
+Load signed byte into register from absolute memory address and sign extend
+
+Operation:
+
+=eff_addr = PC + imm19, rd ← sign_extend(align(M[eff_addr]) & 0xff)=
+
+**** Processor Status Word
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Set to 0
+- *C* Set to 0
 *** =stxw= Store word absolute
 <<sec:stxw>>
+**** Description
+Store word into absolute memory address
+
+Operation:
+
+=eff_addr = rs1 + imm13, M[eff_addr] ← rd=
+
+If alignment is bad (=eff-address<1:0> ≠ 00=), trap to address 0x80000000
+
+**** Processor Status Word
+SCC bit should be OFF
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Set to 0
+- *C* Set to 0
+**** Notes
+- SCC bit should be OFF
+- Shortsource2 MUST be imm13, not a register, otherwise
+  effective address is GARBAGE
 *** =strw= Store word relative
 <<sec:strw>>
+**** Description
+Store word into PC relative memory address
+
+Operation:
+
+=eff_addr = PC + imm19, M[eff_addr] ← rd=
+
+If alignment is bad (=eff-address<1:0> ≠ 00=), trap to address 0x80000000
+
+**** Processor Status Word
+SCC bit should be OFF
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* Set to 0
+- *N* Set 0
+- *V* Garbage
+- *C* Garbage
+**** Notes
+- SCC bit should be OFF
+
 *** =stxh= Store half word absolute
 <<sec:stxh>>
+**** Description
+Store half word into absolute memory address
+
+Operation:
+
+=eff_addr = rs1 + imm13, M[eff_addr] ← align(rd & 0ffff)=
+
+If alignment is bad (=eff-address<0> ≠ 0=), trap to address 0x80000000
+
+**** Processor Status Word
+SCC bit should be OFF
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Set to 0
+- *C* Set to 0
+**** Notes
+- SCC bit should be OFF
+- Shortsource2 MUST be imm13, not a register, otherwise
+  effective address is GARBAGE
 *** =strh= Store half word relative
 <<sec:strh>>
+**** Description
+Store half word into PC relative memory address
+
+Operation:
+
+=eff_addr = PC + imm19, M[eff_addr] ← align(rd & 0xffff)=
+
+If alignment is bad (=eff-address<0> ≠ 0=), trap to address 0x80000000
+
+**** Processor Status Word
+SCC bit should be OFF
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* Set to 0
+- *N* Set 0
+- *V* Garbage
+- *C* Garbage
+**** Notes
+- SCC bit should be OFF
+
 *** =stxb= Store byte absolute
 <<sec:stxb>>
+**** Description
+Store byte into absolute memory address
+
+Operation:
+
+=eff_addr = rs1 + imm13, M[eff_addr] ← align(rd & 0xff)=
+
+**** Processor Status Word
+SCC bit should be OFF
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* =rd ≡ 0=
+- *N* =rd<31>=
+- *V* Set to 0
+- *C* Set to 0
+**** Notes
+- SCC bit should be OFF
+- Shortsource2 MUST be imm13, not a register, otherwise
+  effective address is GARBAGE
 *** =strb= Store byte relative
 <<sec:strb>>
+**** Description
+Store byte into PC relative memory address
+
+Operation:
+
+=eff_addr = PC + imm19, M[eff_addr] ← align(rd & 0xff)=
+
+**** Processor Status Word
+SCC bit should be OFF
+| CWP | SWP | I | S | P | Z  | N  | V  | C  |
+|-----+-----+---+---+---+----+----+----+----|
+| -   | -   | - | - | - | ✅ | ✅ | ✅ | ✅ |
+
+- *Z* Set to 0
+- *N* Set 0
+- *V* Garbage
+- *C* Garbage
+**** Notes
+- SCC bit should be OFF
 
 * Conditionals
 <<sec:conds>>
@@ -237,23 +989,25 @@ Align (left shift) the value according to the memory address.
 |------+---------------------------------+----------------------------------|
 | 0001 | Signed greater than             | $\overline{(N\oplus V) \vert Z}$ |
 | 0010 | Signed less than or equal to    | $(N\oplus V) \vert Z$            |
-| 0011 | Signed greater than or equal to | $\overline{N\oplus Z}$            |
+| 0011 | Signed greater than or equal to | $\overline{N\oplus Z}$           |
 | 0100 | Signed less than                | $N\oplus Z$                      |
-| 0101 | Unsigned greater than           | $\overline{\overline{C} + Z}$      |
-| 0110 | Unsigned less than or equal     | $\overline{C} + Z$                |
-| 0111 | Unsigned less than              | $\overline{C}$                    |
+| 0101 | Unsigned greater than           | $\overline{\overline{C} + Z}$    |
+| 0110 | Unsigned less than or equal     | $\overline{C} + Z$               |
+| 0111 | Unsigned less than              | $\overline{C}$                   |
 | 1000 | Unsigned greater than           | $C$                              |
-| 1001 | Positive (or zero)              | $\overline{N}$                    |
+| 1001 | Positive (or zero)              | $\overline{N}$                   |
 | 1010 | Negative                        | $N$                              |
-| 1011 | Not equal                       | $\overline{Z}$                    |
+| 1011 | Not equal                       | $\overline{Z}$                   |
 | 1100 | Equal                           | $Z$                              |
-| 1101 | No overflow                     | $\overline{V}$                    |
+| 1101 | No overflow                     | $\overline{V}$                   |
 | 1110 | Overflow                        | $V$                              |
 | 1111 | Always                          | 1                                |
 
 
 * The Clock
 <<sec:clock>>
+
+RISCII has a four phase clock. 
 
 
 * Memory addressing
@@ -320,6 +1074,8 @@ out of register windows on a function call it must flush the oldest
 window(s) to memory and then restore them when the current function
 returns.
 
+** Processor Status Word
+<<sec:psw>>
 ** Special registers
 <<sec:spec>> The RISCII's pipeline also has five special registers
 used for internal state.
@@ -330,10 +1086,14 @@ used for internal state.
   branching method.
 - *LSTPC*: Last program counter. What PC was during the execution of
   the last instruction. Used for restoring from a trap/interrupt.
-- *CWP*: Current window pointer[[sec:wins]]. The number of windows on the
+- *CWP*: Current window pointer (see [[sec:wins]]). The number of windows on the
   window stack (3 bits).
-- *SWP*: Saved window pointer[[sec:wins]]. Index of the youngest window
+- *SWP*: Saved window pointer (see [[sec:wins]]). Index of the youngest window
   saved in memory (3 bits).
+
+  
+* Interrupts and Traps
+<<sec:traps>>
 
 
 * Unanswered Questions
