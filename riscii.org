@@ -1082,14 +1082,104 @@ address being accessed.  Any blank value indicates an alignment error.
 
 
 * Data path
-** BAR (Byte Address Register)
-<<sec:bar>>
-Contains the two least significant bits of the memory address currently being accessed.
-** Destination latch
-<<sec:dest_latch>>
+** BAR (Byte Address Register) (2 bits)
+<<sec:bar>> Contains the two least significant bits of the memory
+address currently being accessed.
+** Destination latch (32 bits)
+<<sec:dest_latch>> Where the result of an instruction is stored until
+it is written to the destination register during the next
+instruction. The
+** Data/In and Immediate latch (DIMM)  (32 bits)
+<<sec:dimm>> Combined Data/In and immediate latch. It is attached
+to a dedicated sign extender.
+
+- If the instruction being executed is a 19 immediate then the
+  immediate is routed to the most significant 19 bits of DIMM.
+- If the instruction being executed is a 13 bit immediate then
+  the immediate is sign-extended to 32 bits and stored in DIMM.
+- If the data coming in is not an instruction, then the entire
+  incoming word is stored in DIMM.
+** Processor Status Word (PSW) (13 bits)
+<<sec:psw>> A 13 bit register that contains register window information,
+system configuration bits, and the condition codes.
+*** Current Window Pointer (CWP) (3 bits)
+<<sec:psw_cwp>> Contains the index of the current [[sec:wins][register window]]. It
+is initialized to 7, and is decremented by CALL instructions and
+incremented by RET instructions.
+*** Saved Window Pointer (SWP) (3 bits)
+<<sec:psw_swp>> Contains the index of the last register window that
+was stored in memory. When a CALL or RET instruction results in a
+new CWP that is equal to SWP then a register underflow/overflow
+trap is triggered. Usually, this means a register window will be
+flushed to memory and SWP will be incremented.
+
+SWP is initialized to 1, as the 0th window must be free for interrupts.
+*** Interrupt enable bit (I) (1 bit)
+<<sec:psw_i>> If logic true, then interrupts are enabled. If logic
+false then interrupts are disabled. However, the RESET interrupt
+cannot be ignored even if the I is logic false.
+*** System mode bit (S) (1 bit)
+<<sec:psw_s>> If logic true, then privileged instructions (e.g. putpsw)
+can be executed. If a S is logic false and a privileged instruction
+is executed, then the opcode will be considered illegal and the
+illegal opcode trap will be triggered.
+*** Previous System mode bit (P) (1 bit)
+<<sec:psw_p>> Contains the value of S the last time it was changed.
+*** Zero condition code bit (Z) (1 bit)
+<<sec:psw_z>> Condition code zero bit. Generally, is logic true if the last
+instruction with its SCC bit ON wrote 0 to its destination. If
+the last instruction with its SCC bit ON wrote anything other than
+0 to its destination, then Z is logic false.
+*** Negative condition code bit (N) (1 bit)
+<<sec:psw_n>> Condition code negative bit. Generally, is logic true if the last
+instruction with its SCC bit ON wrote a value with its MSB ON to its destination. If
+the last instruction with its SCC bit ON wrote a value with its MSB OFF to its
+destination then the N is logic false.
+*** Overflow condition code bit (V) (1 bit)
+<<sec:psw_v>> Condition code overflow bit. Generally, is logic true if
+the last instruction ALU-based instruction with its SCC bit ON caused
+a signed integer overflow (i.e. the sign bit was changed when it
+should not have been). If the last ALU bound instruction with its
+SCC bit ON did not cause a signed integer overflow then V is logic
+false.
+*** Carry condition code bit (C) (1 bit)
+<<sec:psw_c>> Condition code carry bit. Generally, is logic true if
+the last instruction ALU-based instruction with its SCC bit ON caused
+an unsigned integer carry (i.e. the result of an ALU instruction
+requires 33 bits to store, or bit <31> borrowed from bit <32>).  If
+the last ALU bound instruction with its SCC bit ON did not cause a
+integer carry then C is logic false.
+
+
 
 * Control Unit
 <<sec:control>>
+
+* Arithmetic Logic Unit (ALU)
+<<sec:alu>> The ALU is used to compute the result of instructions. It
+implements the following actions: 
+
+- Add
+- Subtract
+- AND
+- OR
+- XOR
+
+See [[sec:shifter][the shifter]] for shifts. The ALU also generates an instruction's
+[[sec:cc][conditon codes]].
+
+* Shifter
+<<sec:shifter>> Implements logical and arithmetic shifting. It is used
+to compute the result of shift instructions and compute their [[sec:cc][conditon
+codes]].
+
+The shifter is also used to align data coming in from memory.  For
+example, if we are loading a half word which is the last two bytes of
+a word the shifter must shift the word right by 16. The shifter can
+also sign extend data from memory by arithmetic shifting.
+
+If the instruction is a long immediate instruction then the shifter must
+right shift the immediate (which is stored in [[sec:dimm][DIMM]]) by 13 bits.
 
 * User visible State
 ** Condition code bits
@@ -1140,9 +1230,9 @@ used for internal state.
 - *LSTPC*: Last program counter. What PC was during the execution of
   the last instruction. Used for restoring from a trap/interrupt.
 - *CWP*: Current window pointer (see [[sec:wins]]). The number of windows on the
-  window stack (3 bits).
+  window stack (3 bits). Part of the [[sec:psw_cwp][processor status word]].
 - *SWP*: Saved window pointer (see [[sec:wins]]). Index of the youngest window
-  saved in memory (3 bits).
+  saved in memory (3 bits). Part of the [[sec:psw_swp][processor status word]].
 
   
 * Interrupts and Traps
