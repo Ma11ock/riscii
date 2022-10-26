@@ -57,6 +57,7 @@ ARM support bit rotation in particular due to its usefullness in
 cryptography].
 
 * Pipeline
+<<sec:pipeline>>
 
 The RISCII has a three stage pipeline: fetch instruction, execute
 instruction, and commit result.
@@ -202,6 +203,7 @@ Operation:
 - NOT transparent to interrupts
 - Meant ONLY for use by the interrupt mechanism
 - If interrupts are enabled an overflow trap may occur TODO
+- Rd is hardwired to r25 for internal traps
 
 *** =getlpc= Get Last Program Counter
 <<sec:getlpc>>
@@ -1007,21 +1009,70 @@ SCC bit should be OFF
 * The Clock
 <<sec:clock>>
 
-RISCII has a four phase clock. 
+RISCII has a four phase clock[fn::Personal note: I believe this is the
+secret to RISCII's one clock cycle instructions]. Each clock phase is
+responsible for driving certain parts of an instruction.
+
+** $\phi_1$
+*** Execution step
+During $phi_1$ the register file for the currently executing
+instruction is read (rs1 and rs2) and routed to the shifter. If a
+source register was the destination register for the last instruction,
+then that source is routed from the [[sec:dest_latch][destination latch]] (see [[sec:pipeline][the
+pipeline]]).
+
+*** Memory
+The MMU begins its memory read.
+** $\phi_2$
+*** Execution step
+During $phi_2$ sources are routed through the shifter, according to
+the executing instruction.
+
+*** Memory
+The MMU reads the data pins from the CPU and begins to write to
+memory if it may do so.
+** $\phi_3$
+*** Execution step
+During $phi_3$ the ALU computes the instruction's result according to
+the executing instruction. The result is written into the destination
+latch.
+*** Commit Step
+The value in the destination latch is written into the destination
+register according to the previous instruction. PSW is written
+according to the previous instruction.
+*** Memory
+The memory read is completed and the result is read into the CPU's input pins.
+** $\phi_4$
+*** Execution step
+If the instruction is a load, the result is shifted according to the
+type of load.
+*** Fetch and decode step
+The value coming in from memory is read into [[sec:control][the control]] unit.  The
+instruction is decoded and the control signal is generated for the
+next instruction. The input and destination registers are decoded for
+their position in the register file.
+*** Memory
+The address output pins are read from the CPU to setup for the
+memory operation.
+
+** $\phi_\mathrm{int}$
+TODO
+
 
 
 * Memory addressing
 
-When loading or storing, the RISC II requires that the memory address be aligned
-according to the type that is being loaded/stored. Words addresses must be divisible by 4,
-short addresses must be divisible by 2, and bytes can have any address. An invalid alignment
-will result in a TRAP.
+When loading or storing, the RISC II requires that the memory address
+be aligned according to the type that is being loaded/stored. Words
+addresses must be divisible by 4, short addresses must be divisible by
+2, and bytes can have any address. An invalid alignment will result in
+a TRAP.
 
 Alignment requirements.
 
 Below is a table that shows what addresses are valid for each type.
-The four rightmost columns represent the last two bits of the memory address being accessed.
-Any blank value indicates an alignment error.
+The four rightmost columns represent the last two bits of the memory
+address being accessed.  Any blank value indicates an alignment error.
 
 | Value | 00 | 01 | 10 | 11 |
 |-------+----+----+----+----|
@@ -1030,10 +1081,12 @@ Any blank value indicates an alignment error.
 | Byte  | ✅ | ✅ | ✅ | ✅ |
 
 
-* Data bus
+* Data path
 ** BAR (Byte Address Register)
 <<sec:bar>>
 Contains the two least significant bits of the memory address currently being accessed.
+** Destination latch
+<<sec:dest_latch>>
 
 * Control Unit
 <<sec:control>>
