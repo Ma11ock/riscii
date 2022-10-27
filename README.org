@@ -3,14 +3,31 @@
 #+EMAIL: ryan@ryanmj.xyz
 #+OPTIONS: num:nil
 
-An emulated PC with a RISC II processor.
+* What
+An emulated PC with a RISC II processor. See [[https://ryanmj.xyz/riscii][this page]] for an in-depth
+description of the RISC II processor.
+
+The RISC II was an experimental processor created at UC Berkeley by
+Manolis Katevenis and Robert Sherburne under professors David
+Patterson and Carlo Séquin.  It was completed in 1983 as the successor
+to the original RISC processor. It had a simple design with 32 bit
+instructions, only two instruction formats, and only two addressing modes.
+The RISC II served as the primary inspiration for the Sun SPARC
+architecture, an early industry implementation of RISC.
+
+Documentation on the RISC II is scarce and its technical details can
+only be found in Katevenis' PhD thesis. This project exists to
+preserve knowledge on this important piece of computer history.
+
+See [[https://github.com/Ma11ock/riscii-guy][this project]] for an experimental assembler for the RISC II.
 
 ** Feature completeness
-- [ ] RISC II emulation
-- [ ] SDL window, I/O, sound
-- [ ] MMU
-- [ ] Firmware (probably IEEE 1275) implementation
-- [ ] Floating point co processor
-- [ ] Multicore
+| Feature                           | State                        |
+|-----------------------------------+------------------------------|
+| RISC II instruction set emulation | Partial [fn::There are bugs] |
+| Screen output & I/O               | Work started                 |
+| MMU/Virtual Memory                | No                           |
+| Firmware                          | No                           |
+
 
 

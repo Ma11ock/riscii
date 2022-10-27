@@ -1088,7 +1088,8 @@ address currently being accessed.
 ** Destination latch (32 bits)
 <<sec:dest_latch>> Where the result of an instruction is stored until
 it is written to the destination register during the next
-instruction. The
+instruction. It is connected to the ALU, shifter, PSW, PC's, and the
+register file.
 ** Data/In and Immediate latch (DIMM)  (32 bits)
 <<sec:dimm>> Combined Data/In and immediate latch. It is attached
 to a dedicated sign extender.
@@ -1217,8 +1218,6 @@ out of register windows on a function call it must flush the oldest
 window(s) to memory and then restore them when the current function
 returns.
 
-** Processor Status Word
-<<sec:psw>>
 ** Special registers
 <<sec:spec>> The RISCII's pipeline also has five special registers
 used for internal state.
