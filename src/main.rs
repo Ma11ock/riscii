@@ -42,10 +42,8 @@ pub mod window;
 
 use config::Config;
 use debug_window::DebugWindow;
-use sdl::{Context, Drawable};
+use sdl::{make_font_context, Context, Drawable};
 use sdl2::event::{Event, WindowEvent};
-use sdl2::keyboard::Keycode;
-use std::boxed::Box;
 use std::error::Error;
 use system::System;
 use window::MainWindow;
@@ -133,16 +131,22 @@ fn main() -> Result<(), Box<dyn Error>> {
     //println!("Opening binary file {}.", path);
     //let program = fs::read(path)?;
     let mut sdl_context = Context::new()?;
+    let mut font_context = make_font_context()?;
 
     let mut main_window = MainWindow::new(&config, &system, &mut sdl_context)?;
     let mut debug_window = if config.is_debug_mode() {
-        Some(DebugWindow::new(&config, &system, &mut sdl_context)?)
+        Some(DebugWindow::new(
+            &config,
+            &system,
+            &mut sdl_context,
+            &mut font_context,
+        )?)
     } else {
         None
     };
 
     'running: loop {
-        match handle_events(&mut sdl_context, &mut main_window, &mut debug_window) {
+        match { handle_events(&mut sdl_context, &mut main_window, &mut debug_window) } {
             GlobalAction::QuitProgram => {
                 break 'running;
             }

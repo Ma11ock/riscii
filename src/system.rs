@@ -14,15 +14,13 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use clock::Clock;
+use clock::{Clock, Phase};
 use config::Config;
 use cpu::OutputPins;
 use data_path::{Control, DataPath};
 use instruction::{noop, InstructionCycle};
 use memory::Memory;
 use util::Result;
-
-use crate::clock::Phase;
 
 pub struct System {
     /// RISCII data path.
@@ -44,8 +42,7 @@ pub struct System {
 
 impl System {
     pub fn new(config: &Config) -> Result<Self> {
-        let mut dp = DataPath::new();
-        let nop = noop(&mut dp);
+        let dp = DataPath::new();
         Ok(Self {
             data_path: dp,
             mem: Memory::new(config),

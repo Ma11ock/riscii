@@ -22,11 +22,13 @@ use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
-use sdl2::render::Canvas;
-use sdl2::video::Window;
+use sdl2::render::{Canvas, TextureCreator};
+use sdl2::ttf::{Font, Sdl2TtfContext};
+use sdl2::video::{Window, WindowContext};
 use sdl2::EventPump;
 use sdl2::Sdl;
 use sdl2::VideoSubsystem;
+use std::path::Path;
 use system::System;
 use util::Result;
 
@@ -54,13 +56,21 @@ pub struct Pane {
     pub canvas: Canvas<Window>,
     /// Id.
     window_id: u32,
+    /// Texture creator.
+    pub texture_creator: TextureCreator<WindowContext>,
 }
+
+pub fn make_font_context() -> std::result::Result<Sdl2TtfContext, String> {
+    sdl2::ttf::init().map_err(|e| e.to_string())
+}
+
 // Struct impls.
 
 impl Context {
     pub fn new() -> Result<Self> {
         let sdl = sdl2::init()?;
         let event_pump = sdl.event_pump()?;
+
         Ok(Self {
             video_system: sdl.video()?,
             context: sdl,
@@ -87,9 +97,12 @@ impl Pane {
         canvas.clear();
         canvas.present();
 
+        let texture_creator = canvas.texture_creator();
+
         Ok(Self {
             canvas: canvas,
             window_id: id,
+            texture_creator: texture_creator,
         })
     }
 

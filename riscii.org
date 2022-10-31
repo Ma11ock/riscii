@@ -103,9 +103,9 @@ register name. The 14th bit is the /immediate bit/ which is high if
 shortSource2 is an immediate or low if a register.
 
 #+CAPTION: Format of a short-immediate instruction.
-| 7 bits | 1 bit | 5 bits | 5 bits | 14 bits      |
-|--------+-------+--------+--------+--------------|
-| opcode | SCC   | DEST   | rs1    | shortSource2 |
+| 7 bits | 1 bit | 5 bits | 5 bits | 1 bit   | 14 bits      |
+|--------+-------+--------+--------+---------+--------------|
+| opcode | SCC   | DEST   | rs1    | imm bit | shortSource2 |
 
 
 #+CAPTION: shortSource2 format for register

@@ -22,12 +22,12 @@ preserve knowledge on this important piece of computer history.
 See [[https://github.com/Ma11ock/riscii-guy][this project]] for an experimental assembler for the RISC II.
 
 ** Feature completeness
-| Feature                           | State                        |
-|-----------------------------------+------------------------------|
-| RISC II instruction set emulation | Partial [fn::There are bugs] |
-| Screen output & I/O               | Work started                 |
-| MMU/Virtual Memory                | No                           |
-| Firmware                          | No                           |
+| Feature                           | State                              |
+|-----------------------------------+------------------------------------|
+| RISC II instruction set emulation | Partial (Incomplete and with bugs) |
+| Screen output & I/O               | Work started                       |
+| MMU/Virtual Memory                | No                                 |
+| Firmware                          | No                                 |
 
 
 

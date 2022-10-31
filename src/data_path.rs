@@ -426,7 +426,9 @@ impl DataPath {
     }
 
     pub fn add_step(&mut self) {
-        self.dst_latch = self.alu.add();
+        if self.scc_flag2 {
+            self.dst_latch = self.alu.add();
+        }
     }
 
     pub fn set_cc_codes_arithmetic(&mut self) {

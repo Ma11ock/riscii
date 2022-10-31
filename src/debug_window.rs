@@ -15,9 +15,10 @@
 
 use config::Config;
 use sdl::{Context, Drawable, Pane};
-use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::*;
+use sdl2::rect::Rect;
+use sdl2::ttf::{Font, Sdl2TtfContext};
 use system::System;
 use util::Result;
 
@@ -25,17 +26,26 @@ pub struct DebugWindow<'a> {
     pane: Pane,
     system: &'a System,
     config: &'a Config,
+    font: Font<'a, 'static>,
 }
 
 impl<'a> DebugWindow<'a> {
-    pub fn new(config: &'a Config, system: &'a System, context: &mut Context) -> Result<Self> {
+    pub fn new(
+        config: &'a Config,
+        system: &'a System,
+        context: &mut Context,
+        ttf: &'a mut Sdl2TtfContext,
+    ) -> Result<Self> {
+        let pane = Pane::new(
+            config.get_debug_win_width(),
+            config.get_debug_win_height(),
+            format!("Debug"),
+            context,
+        )?;
+        let debug_font = { ttf.load_font("debug.otf", 12)? };
         Ok(Self {
-            pane: Pane::new(
-                config.get_debug_win_width(),
-                config.get_debug_win_height(),
-                format!("Debug"),
-                context,
-            )?,
+            font: debug_font,
+            pane: pane,
             system: system,
             config: config,
         })
@@ -44,10 +54,22 @@ impl<'a> DebugWindow<'a> {
 
 impl<'a> Drawable for DebugWindow<'a> {
     fn draw(&mut self, context: &mut Context) {
+        // Clear the window.
+        const DRAW_COLOR: Color = Color::RGB(0, 0, 0);
         self.pane.canvas.set_draw_color(Color::RGB(0, 0, 0));
         self.pane.canvas.clear();
 
-        //
+        const OBJ_DEFAULT_COLOR: Color = Color::RGB(0xFF, 0xFF, 0xFF);
+        const OBJ_USE_COLOR: Color = Color::RGB(0xFa, 0x10, 0x10);
+
+        // Register file.
+        let mut reg_file = Rect::new(100, 200, 200, 400);
+
+        // Draw register file.
+        self.pane.canvas.set_draw_color(OBJ_DEFAULT_COLOR);
+        self.pane.canvas.draw_rect(reg_file);
+
+        // Draw the debug window.
         self.pane.canvas.present();
     }
 
