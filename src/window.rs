@@ -32,11 +32,13 @@ pub struct MainWindow<'a> {
 // Struct impls.
 
 impl<'a> Drawable for MainWindow<'a> {
-    fn draw(&mut self, context: &mut Context) {
+    fn draw(&mut self, context: &mut Context) -> Result<()> {
         self.pane.canvas.set_draw_color(Color::RGB(0, 0, 0));
         self.pane.canvas.clear();
         //
         self.pane.canvas.present();
+
+        Ok(())
     }
 
     fn handle_key_down(&mut self, kc: Keycode) {}

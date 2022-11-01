@@ -35,7 +35,7 @@ use util::Result;
 // Struct definitions.
 
 pub trait Drawable {
-    fn draw(&mut self, context: &mut Context);
+    fn draw(&mut self, context: &mut Context) -> Result<()>;
     fn handle_key_down(&mut self, kc: Keycode);
     fn handle_key_up(&mut self, kc: Keycode);
     fn get_window_id(&self) -> u32;

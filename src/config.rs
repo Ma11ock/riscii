@@ -343,7 +343,7 @@ fn default_cache() -> String {
 }
 
 fn default_width() -> u32 {
-    1200
+    1600
 }
 
 fn default_height() -> u32 {

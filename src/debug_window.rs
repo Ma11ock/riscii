@@ -15,6 +15,7 @@
 
 use config::Config;
 use sdl::{Context, Drawable, Pane};
+use sdl2::gfx::primitives::DrawRenderer;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::*;
 use sdl2::rect::Rect;
@@ -42,7 +43,7 @@ impl<'a> DebugWindow<'a> {
             format!("Debug"),
             context,
         )?;
-        let debug_font = { ttf.load_font("debug.otf", 12)? };
+        let debug_font = { ttf.load_font("debug.otf", 20)? };
         Ok(Self {
             font: debug_font,
             pane: pane,
@@ -53,9 +54,9 @@ impl<'a> DebugWindow<'a> {
 }
 
 impl<'a> Drawable for DebugWindow<'a> {
-    fn draw(&mut self, context: &mut Context) {
+    fn draw(&mut self, context: &mut Context) -> Result<()> {
         // Clear the window.
-        const DRAW_COLOR: Color = Color::RGB(0, 0, 0);
+        const CLEAR_COLOR: Color = Color::RGB(0, 0, 0);
         self.pane.canvas.set_draw_color(Color::RGB(0, 0, 0));
         self.pane.canvas.clear();
 
@@ -63,14 +64,365 @@ impl<'a> Drawable for DebugWindow<'a> {
         const OBJ_USE_COLOR: Color = Color::RGB(0xFa, 0x10, 0x10);
 
         // Register file.
-        let mut reg_file = Rect::new(100, 200, 200, 400);
+        let reg_file = Rect::new(50, 400, 200, 400);
+        let reg_file_name = self
+            .font
+            .render("Register File")
+            .blended(OBJ_DEFAULT_COLOR)
+            .map_err(|e| e.to_string())?;
+        let texture = self
+            .pane
+            .texture_creator
+            .create_texture_from_surface(&reg_file_name)
+            .map_err(|e| e.to_string())?;
 
         // Draw register file.
         self.pane.canvas.set_draw_color(OBJ_DEFAULT_COLOR);
-        self.pane.canvas.draw_rect(reg_file);
+        self.pane.canvas.draw_rect(reg_file)?;
+
+        self.pane
+            .canvas
+            .copy(&texture, None, Some(Rect::new(60, 400, 180, 50)))?;
+
+        // Draw the latches.
+        // Start with DST.
+        let latch = Rect::new(350, 500, 50, 300);
+        self.pane.canvas.set_draw_color(OBJ_DEFAULT_COLOR);
+        self.pane.canvas.draw_rect(latch)?;
+
+        let latch_name = self
+            .font
+            .render("DST")
+            .blended(OBJ_DEFAULT_COLOR)
+            .map_err(|e| e.to_string())?;
+        let texture = self
+            .pane
+            .texture_creator
+            .create_texture_from_surface(&latch_name)
+            .map_err(|e| e.to_string())?;
+
+        self.pane
+            .canvas
+            .copy(&texture, None, Some(Rect::new(325, 800, 100, 50)))?;
+
+        // Now SRC.
+        let latch = Rect::new(475, 500, 50, 300);
+        self.pane.canvas.set_draw_color(OBJ_DEFAULT_COLOR);
+        self.pane.canvas.draw_rect(latch)?;
+
+        let latch_name = self
+            .font
+            .render("SRC")
+            .blended(OBJ_DEFAULT_COLOR)
+            .map_err(|e| e.to_string())?;
+        let texture = self
+            .pane
+            .texture_creator
+            .create_texture_from_surface(&latch_name)
+            .map_err(|e| e.to_string())?;
+
+        self.pane
+            .canvas
+            .copy(&texture, None, Some(Rect::new(450, 800, 100, 50)))?;
+
+        // Now NXTPC.
+        let latch = Rect::new(1075, 500, 50, 300);
+        self.pane.canvas.set_draw_color(OBJ_DEFAULT_COLOR);
+        self.pane.canvas.draw_rect(latch)?;
+
+        let latch_name = self
+            .font
+            .render("NXTPC")
+            .blended(OBJ_DEFAULT_COLOR)
+            .map_err(|e| e.to_string())?;
+        let texture = self
+            .pane
+            .texture_creator
+            .create_texture_from_surface(&latch_name)
+            .map_err(|e| e.to_string())?;
+
+        self.pane
+            .canvas
+            .copy(&texture, None, Some(Rect::new(1050, 800, 100, 50)))?;
+
+        // Now PC.
+        let latch = Rect::new(1175, 500, 50, 300);
+        self.pane.canvas.set_draw_color(OBJ_DEFAULT_COLOR);
+        self.pane.canvas.draw_rect(latch)?;
+
+        let latch_name = self
+            .font
+            .render("PC")
+            .blended(OBJ_DEFAULT_COLOR)
+            .map_err(|e| e.to_string())?;
+        let texture = self
+            .pane
+            .texture_creator
+            .create_texture_from_surface(&latch_name)
+            .map_err(|e| e.to_string())?;
+
+        self.pane
+            .canvas
+            .copy(&texture, None, Some(Rect::new(1175, 800, 50, 50)))?;
+
+        // Now LSTPC.
+        let latch = Rect::new(1275, 500, 50, 300);
+        self.pane.canvas.set_draw_color(OBJ_DEFAULT_COLOR);
+        self.pane.canvas.draw_rect(latch)?;
+
+        let latch_name = self
+            .font
+            .render("LSTPC")
+            .blended(OBJ_DEFAULT_COLOR)
+            .map_err(|e| e.to_string())?;
+        let texture = self
+            .pane
+            .texture_creator
+            .create_texture_from_surface(&latch_name)
+            .map_err(|e| e.to_string())?;
+
+        self.pane
+            .canvas
+            .copy(&texture, None, Some(Rect::new(1250, 800, 100, 50)))?;
+
+        // RD
+        let latch = Rect::new(100, 75, 100, 50);
+        self.pane.canvas.set_draw_color(OBJ_DEFAULT_COLOR);
+        self.pane.canvas.draw_rect(latch)?;
+
+        let latch_name = self
+            .font
+            .render("RD")
+            .blended(OBJ_DEFAULT_COLOR)
+            .map_err(|e| e.to_string())?;
+        let texture = self
+            .pane
+            .texture_creator
+            .create_texture_from_surface(&latch_name)
+            .map_err(|e| e.to_string())?;
+
+        self.pane
+            .canvas
+            .copy(&texture, None, Some(Rect::new(125, 125, 50, 50)))?;
+
+        // RS1
+        let latch = Rect::new(50, 200, 100, 50);
+        self.pane.canvas.set_draw_color(OBJ_DEFAULT_COLOR);
+        self.pane.canvas.draw_rect(latch)?;
+
+        let latch_name = self
+            .font
+            .render("RS1")
+            .blended(OBJ_DEFAULT_COLOR)
+            .map_err(|e| e.to_string())?;
+        let texture = self
+            .pane
+            .texture_creator
+            .create_texture_from_surface(&latch_name)
+            .map_err(|e| e.to_string())?;
+
+        self.pane
+            .canvas
+            .copy(&texture, None, Some(Rect::new(75, 250, 50, 50)))?;
+
+        // RS2
+        let latch = Rect::new(175, 200, 100, 50);
+        self.pane.canvas.set_draw_color(OBJ_DEFAULT_COLOR);
+        self.pane.canvas.draw_rect(latch)?;
+
+        let latch_name = self
+            .font
+            .render("RS2")
+            .blended(OBJ_DEFAULT_COLOR)
+            .map_err(|e| e.to_string())?;
+        let texture = self
+            .pane
+            .texture_creator
+            .create_texture_from_surface(&latch_name)
+            .map_err(|e| e.to_string())?;
+
+        self.pane
+            .canvas
+            .copy(&texture, None, Some(Rect::new(200, 250, 50, 50)))?;
+
+        // PSW register
+        let latch = Rect::new(350, 200, 125, 75);
+        self.pane.canvas.set_draw_color(OBJ_DEFAULT_COLOR);
+        self.pane.canvas.draw_rect(latch)?;
+
+        let latch_name = self
+            .font
+            .render("PSW")
+            .blended(OBJ_DEFAULT_COLOR)
+            .map_err(|e| e.to_string())?;
+        let texture = self
+            .pane
+            .texture_creator
+            .create_texture_from_surface(&latch_name)
+            .map_err(|e| e.to_string())?;
+
+        self.pane
+            .canvas
+            .copy(&texture, None, Some(Rect::new(350, 275, 75, 50)))?;
+        // imm
+        let latch = Rect::new(800, 100, 100, 50);
+        self.pane.canvas.set_draw_color(OBJ_DEFAULT_COLOR);
+        self.pane.canvas.draw_rect(latch)?;
+
+        let latch_name = self
+            .font
+            .render("IMM")
+            .blended(OBJ_DEFAULT_COLOR)
+            .map_err(|e| e.to_string())?;
+        let texture = self
+            .pane
+            .texture_creator
+            .create_texture_from_surface(&latch_name)
+            .map_err(|e| e.to_string())?;
+
+        self.pane
+            .canvas
+            .copy(&texture, None, Some(Rect::new(910, 100, 75, 50)))?;
+        // dimm
+        let latch = Rect::new(800, 250, 250, 75);
+        self.pane.canvas.set_draw_color(OBJ_DEFAULT_COLOR);
+        self.pane.canvas.draw_rect(latch)?;
+
+        let latch_name = self
+            .font
+            .render("DIn/DImm")
+            .blended(OBJ_DEFAULT_COLOR)
+            .map_err(|e| e.to_string())?;
+        let texture = self
+            .pane
+            .texture_creator
+            .create_texture_from_surface(&latch_name)
+            .map_err(|e| e.to_string())?;
+
+        self.pane
+            .canvas
+            .copy(&texture, None, Some(Rect::new(900, 325, 150, 50)))?;
+        // op
+        let latch = Rect::new(1100, 125, 50, 50);
+        self.pane.canvas.set_draw_color(OBJ_DEFAULT_COLOR);
+        self.pane.canvas.draw_rect(latch)?;
+
+        let latch_name = self
+            .font
+            .render("OP")
+            .blended(OBJ_DEFAULT_COLOR)
+            .map_err(|e| e.to_string())?;
+        let texture = self
+            .pane
+            .texture_creator
+            .create_texture_from_surface(&latch_name)
+            .map_err(|e| e.to_string())?;
+
+        self.pane
+            .canvas
+            .copy(&texture, None, Some(Rect::new(1100, 175, 50, 50)))?;
+        // Shifter
+        let latch = Rect::new(600, 500, 175, 300);
+        self.pane.canvas.set_draw_color(OBJ_DEFAULT_COLOR);
+        self.pane.canvas.draw_rect(latch)?;
+
+        let latch_name = self
+            .font
+            .render("Shifter")
+            .blended(OBJ_DEFAULT_COLOR)
+            .map_err(|e| e.to_string())?;
+        let texture = self
+            .pane
+            .texture_creator
+            .create_texture_from_surface(&latch_name)
+            .map_err(|e| e.to_string())?;
+
+        self.pane
+            .canvas
+            .copy(&texture, None, Some(Rect::new(600, 450, 100, 50)))?;
+
+        self.pane.canvas.circle(690, 650, 50, OBJ_DEFAULT_COLOR)?;
+        // ALU
+        self.pane.canvas.polygon(
+            &[900, 1000, 1000, 900, 900, 930, 900, 900],
+            &[500, 520, 780, 800, 670, 650, 630, 500],
+            OBJ_DEFAULT_COLOR,
+        )?;
+        let alu_name = self
+            .font
+            .render("ALU")
+            .blended(OBJ_DEFAULT_COLOR)
+            .map_err(|e| e.to_string())?;
+        let texture = self
+            .pane
+            .texture_creator
+            .create_texture_from_surface(&alu_name)
+            .map_err(|e| e.to_string())?;
+
+        self.pane
+            .canvas
+            .copy(&texture, None, Some(Rect::new(900, 450, 75, 50)))?;
+        // AI (ALU input latch)
+        let latch = Rect::new(875, 500, 25, 120);
+        self.pane.canvas.set_draw_color(OBJ_DEFAULT_COLOR);
+        self.pane.canvas.draw_rect(latch)?;
+
+        let latch_name = self
+            .font
+            .render("AI")
+            .blended(OBJ_DEFAULT_COLOR)
+            .map_err(|e| e.to_string())?;
+        let texture = self
+            .pane
+            .texture_creator
+            .create_texture_from_surface(&latch_name)
+            .map_err(|e| e.to_string())?;
+
+        self.pane
+            .canvas
+            .copy(&texture, None, Some(Rect::new(825, 450, 50, 50)))?;
+        // BI (ALU input latch)
+        let latch = Rect::new(875, 680, 25, 120);
+        self.pane.canvas.set_draw_color(OBJ_DEFAULT_COLOR);
+        self.pane.canvas.draw_rect(latch)?;
+
+        let latch_name = self
+            .font
+            .render("BI")
+            .blended(OBJ_DEFAULT_COLOR)
+            .map_err(|e| e.to_string())?;
+        let texture = self
+            .pane
+            .texture_creator
+            .create_texture_from_surface(&latch_name)
+            .map_err(|e| e.to_string())?;
+
+        self.pane
+            .canvas
+            .copy(&texture, None, Some(Rect::new(825, 800, 50, 50)))?;
+        // BAR
+        let latch = Rect::new(800, 400, 25, 25);
+        self.pane.canvas.set_draw_color(OBJ_DEFAULT_COLOR);
+        self.pane.canvas.draw_rect(latch)?;
+
+        let latch_name = self
+            .font
+            .render("BAR")
+            .blended(OBJ_DEFAULT_COLOR)
+            .map_err(|e| e.to_string())?;
+        let texture = self
+            .pane
+            .texture_creator
+            .create_texture_from_surface(&latch_name)
+            .map_err(|e| e.to_string())?;
+
+        self.pane
+            .canvas
+            .copy(&texture, None, Some(Rect::new(830, 400, 75, 50)))?;
 
         // Draw the debug window.
         self.pane.canvas.present();
+        Ok(())
     }
 
     fn handle_key_down(&mut self, kc: Keycode) {}
