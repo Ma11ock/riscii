@@ -21,6 +21,15 @@ preserve knowledge on this important piece of computer history.
 
 See [[https://github.com/Ma11ock/riscii-guy][this project]] for an experimental assembler for the RISC II.
 
+* Debugging
+
+This emulator contains a debugging tool that shows the inner workings
+of the CPU's data path.
+
+A screenshot of the debugger:
+
+[[./riscii_data_path.png]]
+
 ** Feature completeness
 | Feature                           | State                              |
 |-----------------------------------+------------------------------------|
