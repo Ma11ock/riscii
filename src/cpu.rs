@@ -365,7 +365,7 @@ impl ProcessorStatusWord {
     }
 
     pub fn get_cwp(&self) -> u8 {
-        ((self.0 & CWP_LOC) as u8) >> 10
+        ((self.0 & CWP_LOC) >> 10) as u8
     }
 
     pub fn get_swp(&self) -> u8 {

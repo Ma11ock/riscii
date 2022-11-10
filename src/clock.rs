@@ -17,8 +17,6 @@ use config::Config;
 use std::fmt;
 use std::time::{Duration, Instant};
 
-use crate::system;
-
 /// Phases for RISCII's multi (4) phase clock non-overlapping clock.
 #[derive(PartialEq, Eq, Clone)]
 pub enum Phase {
