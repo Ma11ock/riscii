@@ -158,7 +158,7 @@ impl<'a> Drawable for DebugWindow<'a> {
                 rs1,
                 dp.register_file().read(rs1, dp.psw().get_cwp())
             ),
-            Rect::new(60, 400, 180, 50),
+            Rect::new(60, 700, 180, 50),
             OBJ_DEFAULT_COLOR,
         )?;
         self.draw_string(
@@ -167,47 +167,62 @@ impl<'a> Drawable for DebugWindow<'a> {
                 rs2,
                 dp.register_file().read(rs2, dp.psw().get_cwp())
             ),
-            Rect::new(60, 450, 180, 50),
+            Rect::new(60, 750, 180, 50),
             OBJ_DEFAULT_COLOR,
         )?;
         // busA
-        self.draw_line((60, 600, 475, 600), OBJ_DEFAULT_COLOR)?;
-        self.draw_static_str("busA", Rect::new(60, 610, 50, 25), OBJ_DEFAULT_COLOR)?;
+        self.draw_static_str("busA", Rect::new(60, 510, 50, 25), OBJ_DEFAULT_COLOR)?;
+        self.draw_lines(
+            &[(60, 500, 425, 500), (425, 500, 425, 700)],
+            OBJ_DEFAULT_COLOR,
+        )?;
 
         // busB
-        self.draw_line((60, 700, 475, 700), OBJ_DEFAULT_COLOR)?;
-        self.draw_static_str("busB", Rect::new(60, 710, 50, 25), OBJ_DEFAULT_COLOR)?;
+        self.draw_static_str("busB", Rect::new(60, 585, 50, 25), OBJ_DEFAULT_COLOR)?;
+        self.draw_lines(
+            &[(60, 575, 310, 575), (310, 575, 310, 700)],
+            OBJ_DEFAULT_COLOR,
+        )?;
 
         // Draw the latches.
         // Start with DST.
-        self.draw_rect(Rect::new(350, 500, 50, 300), OBJ_DEFAULT_COLOR)?;
-        self.draw_static_str("DST", Rect::new(325, 800, 100, 50), OBJ_DEFAULT_COLOR)?;
+        self.draw_rect(Rect::new(280, 600, 300, 50), OBJ_DEFAULT_COLOR)?;
+        self.draw_static_str("DST", Rect::new(325, 550, 100, 50), OBJ_DEFAULT_COLOR)?;
+
+        self.draw_string(
+            &format!("{:08x}", dp.dst_latch()),
+            Rect::new(280, 600, 275, 50),
+            OBJ_DEFAULT_COLOR,
+        )?;
         // busD
         self.draw_lines(
             &[
-                (400, 525, 1275, 525),
+                (450, 600, 450, 525),
+                (450, 525, 1275, 525),
                 (815, 525, 815, 450),
                 (850, 525, 850, 575),
                 (850, 575, 875, 575),
             ],
             OBJ_DEFAULT_COLOR,
         )?;
-        self.draw_static_str("busD", Rect::new(410, 500, 50, 25), OBJ_DEFAULT_COLOR)?;
+        self.draw_static_str("busD", Rect::new(450, 500, 50, 25), OBJ_DEFAULT_COLOR)?;
         // busR
         self.draw_lines(
             &[
-                (400, 640, 850, 640),
-                (850, 640, 850, 750),
-                (805, 640, 805, 450),
+                (475, 650, 475, 700),
+                (475, 675, 850, 675),
+                (850, 675, 850, 750),
+                (805, 675, 805, 450),
                 (850, 750, 875, 750),
             ],
             OBJ_DEFAULT_COLOR,
         )?;
-        self.draw_static_str("busR", Rect::new(410, 645, 50, 25), OBJ_DEFAULT_COLOR)?;
+        self.draw_static_str("busR", Rect::new(480, 650, 50, 25), OBJ_DEFAULT_COLOR)?;
         // busL
         self.draw_lines(
             &[
-                (400, 760, 600, 760),
+                (450, 650, 450, 760),
+                (450, 760, 600, 760),
                 (600, 760, 790, 550),
                 (790, 550, 790, 350),
                 (790, 350, 825, 350),
@@ -218,8 +233,13 @@ impl<'a> Drawable for DebugWindow<'a> {
         self.draw_static_str("busL", Rect::new(410, 760, 50, 25), OBJ_DEFAULT_COLOR)?;
 
         // Now SRC.
-        self.draw_rect(Rect::new(475, 500, 50, 300), OBJ_DEFAULT_COLOR)?;
-        self.draw_static_str("SRC", Rect::new(450, 800, 100, 50), OBJ_DEFAULT_COLOR)?;
+        self.draw_rect(Rect::new(275, 700, 300, 50), OBJ_DEFAULT_COLOR)?;
+        self.draw_static_str("SRC", Rect::new(325, 650, 100, 50), OBJ_DEFAULT_COLOR)?;
+        self.draw_string(
+            &format!("{:08x}", dp.src_latch()),
+            Rect::new(280, 700, 275, 45),
+            OBJ_DEFAULT_COLOR,
+        )?;
 
         // Now NXTPC.
         self.draw_rect(Rect::new(1075, 500, 50, 300), OBJ_DEFAULT_COLOR)?;
@@ -284,7 +304,7 @@ impl<'a> Drawable for DebugWindow<'a> {
         )?;
         // busB to PSW and SHam
         self.draw_lines(
-            &[(310, 700, 310, 275), (310, 325, 500, 325)],
+            &[(310, 575, 310, 275), (310, 325, 500, 325)],
             OBJ_DEFAULT_COLOR,
         )?;
         // PSW to register file
