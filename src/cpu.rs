@@ -403,7 +403,7 @@ impl ProcessorStatusWord {
 
 impl fmt::Display for ProcessorStatusWord {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "0x{:x}", self.0)
+        write!(f, "{:03x}", self.0)
     }
 }
 

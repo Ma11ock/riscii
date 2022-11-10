@@ -18,13 +18,9 @@ use config::Config;
 use cpu::{OutputPins, ProcessorStatusWord, RegisterFile, SIZEOF_INSTRUCTION};
 use instruction::*;
 use memory::Memory;
-use shifter;
+use shifter::Shifter;
 use std::fmt;
 use util::Result;
-
-use crate::shifter::Shifter;
-
-pub type MicroOp = fn(dp: &mut DataPath);
 
 pub struct SCCBits {
     pub z: bool,
@@ -381,9 +377,36 @@ impl DataPath {
                     // Callr
                     long = true;
                     immediate = true;
+
+                    result = InstructionCycle {
+                        0: [
+                            noop,
+                            noop,
+                            |dp: &mut DataPath| -> () {
+                                dp.callr_step3();
+                            },
+                            noop,
+                            |dp: &mut DataPath| -> () {
+                                dp.commit_callr();
+                            },
+                        ],
+                    };
                 }
                 12 => {
                     // Jmpx
+                    result = InstructionCycle {
+                        0: [
+                            noop,
+                            noop,
+                            |dp: &mut DataPath| -> () {
+                                dp.jmpx_step3();
+                            },
+                            noop,
+                            |dp: &mut DataPath| -> () {
+                                dp.commit_jmpx();
+                            },
+                        ],
+                    };
                 }
                 13 => {
                     // Jmpr
@@ -421,6 +444,26 @@ impl DataPath {
         result
     }
 
+    fn callr_step3(&mut self) {
+        // Calculate value and send it to dest.
+        let eff_addr = self.alu.add();
+
+        self.dst_latch = eff_addr;
+    }
+
+    fn jmpx_step3(&mut self) {
+        //
+    }
+
+    fn commit_jmpx(&mut self) {
+        //
+        self.nxtpc = self.dst_latch;
+    }
+
+    fn commit_callr(&mut self) {
+        //
+    }
+
     pub fn current_instruction_is_memory(&self) -> bool {
         self.control2.memory
     }
@@ -436,6 +479,58 @@ impl DataPath {
             self.psw.set_cc_zero(self.dst_latch == 0);
             self.psw.set_cc_neg(self.dst_latch & SIGN_BIT_LOC != 0);
         }
+    }
+
+    pub fn decode_source_registers(&self) -> (u8, u8) {
+        (self.rs1_1, self.rs2_1)
+    }
+
+    pub fn execute_source_registers(&self) -> (u8, u8) {
+        (self.rs1_2, self.rs2_2)
+    }
+
+    pub fn decode_destination_register(&self) -> u8 {
+        self.rd1
+    }
+
+    pub fn execute_destination_register(&self) -> u8 {
+        self.rd2
+    }
+
+    pub fn commit_destination_register(&self) -> u8 {
+        self.rd3
+    }
+
+    pub fn decode_rd(&self) -> u8 {
+        self.rd1
+    }
+
+    pub fn execute_rd(&self) -> u8 {
+        self.rd2
+    }
+
+    pub fn bar(&self) -> u8 {
+        self.bar
+    }
+
+    pub fn imm(&self) -> u32 {
+        self.imm
+    }
+
+    pub fn execute_op(&self) -> u8 {
+        self.op1
+    }
+
+    pub fn register_file(&self) -> &RegisterFile {
+        &self.regs
+    }
+
+    pub fn psw(&self) -> ProcessorStatusWord {
+        self.psw.clone()
+    }
+
+    pub fn shifter(&self) -> Shifter {
+        self.shifter
     }
 }
 

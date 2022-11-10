@@ -23,6 +23,8 @@ pub struct Shifter {
     pub src: u32,
     /// Amount to shift the input.
     pub s_ham: u8,
+    /// Shift decoder value. Contains the amount to shift by.
+    pub s_dec: u8,
 }
 
 // Impls.
@@ -30,7 +32,11 @@ pub struct Shifter {
 impl Shifter {
     /// Create a 0'd out shifter.
     pub fn new() -> Self {
-        Self { src: 0, s_ham: 0 }
+        Self {
+            src: 0,
+            s_ham: 0,
+            s_dec: 0,
+        }
     }
     /// Left shift `src` by `s_ham` bits.
     pub fn shift_left(&self) -> u32 {
@@ -45,7 +51,7 @@ impl Shifter {
 
 impl fmt::Display for Shifter {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}, {}", self.src, self.s_ham,)
+        write!(f, "{}, {}, {}", self.src, self.s_ham, self.s_dec)
     }
 }
 
@@ -53,8 +59,8 @@ impl fmt::Debug for Shifter {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Input register: {}, SHam latch: {}",
-            self.src, self.s_ham,
+            "Input register: {}, SHam latch: {}, SDEC amount: {}",
+            self.src, self.s_ham, self.s_dec
         )
     }
 }

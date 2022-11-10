@@ -135,4 +135,16 @@ impl System {
             Phase::Interrupt => Phase::One,
         };
     }
+
+    pub fn clock(&self) -> &Clock {
+        &self.clock
+    }
+
+    pub fn data_path(&self) -> &DataPath {
+        &self.data_path
+    }
+
+    pub fn phase(&self) -> Phase {
+        self.phase.clone()
+    }
 }

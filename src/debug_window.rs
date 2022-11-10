@@ -132,7 +132,7 @@ impl<'a> Drawable for DebugWindow<'a> {
                 Phase::Four => "φ₄",
                 Phase::Interrupt => "φᵢ",
             },
-            Rect::new(1400, 0, 50, 50),
+            Rect::new(1550, 0, 50, 50),
             OBJ_DEFAULT_COLOR,
         )?;
 
@@ -186,7 +186,7 @@ impl<'a> Drawable for DebugWindow<'a> {
         self.draw_lines(
             &[
                 (400, 525, 1275, 525),
-                (815, 525, 815, 425),
+                (815, 525, 815, 450),
                 (850, 525, 850, 575),
                 (850, 575, 875, 575),
             ],
@@ -198,18 +198,20 @@ impl<'a> Drawable for DebugWindow<'a> {
             &[
                 (400, 640, 850, 640),
                 (850, 640, 850, 750),
+                (805, 640, 805, 450),
                 (850, 750, 875, 750),
             ],
             OBJ_DEFAULT_COLOR,
         )?;
-
         self.draw_static_str("busR", Rect::new(410, 645, 50, 25), OBJ_DEFAULT_COLOR)?;
         // busL
         self.draw_lines(
             &[
                 (400, 760, 600, 760),
-                (600, 760, 810, 500),
-                (810, 500, 810, 425),
+                (600, 760, 790, 550),
+                (790, 550, 790, 350),
+                (790, 350, 825, 350),
+                (825, 350, 825, 325),
             ],
             OBJ_DEFAULT_COLOR,
         )?;
@@ -235,9 +237,22 @@ impl<'a> Drawable for DebugWindow<'a> {
         self.draw_static_str("RD", Rect::new(125, 125, 50, 50), OBJ_DEFAULT_COLOR)?;
         // busext to RD
         self.pane.canvas.line(150, 50, 150, 75, OBJ_DEFAULT_COLOR)?;
+        self.draw_string(
+            &format!("R{:02}", dp.decode_rd()),
+            Rect::new(125, 75, 50, 50),
+            OBJ_DEFAULT_COLOR,
+        )?;
+
+        // Source register latches
+        let (rs1, rs2) = dp.decode_source_registers();
         // RS1
         self.draw_rect(Rect::new(50, 200, 100, 50), OBJ_DEFAULT_COLOR)?;
         self.draw_static_str("RS1", Rect::new(75, 250, 50, 50), OBJ_DEFAULT_COLOR)?;
+        self.draw_string(
+            &format!("R{:02}", rs1),
+            Rect::new(75, 200, 50, 50),
+            OBJ_DEFAULT_COLOR,
+        )?;
         // busext to RS1
         self.draw_line((75, 50, 75, 200), OBJ_DEFAULT_COLOR)?;
         // RD to RS1
@@ -247,6 +262,11 @@ impl<'a> Drawable for DebugWindow<'a> {
         // RS2
         self.draw_rect(Rect::new(175, 200, 100, 50), OBJ_DEFAULT_COLOR)?;
         self.draw_static_str("RS2", Rect::new(200, 250, 50, 50), OBJ_DEFAULT_COLOR)?;
+        self.draw_string(
+            &format!("R{:02}", rs2),
+            Rect::new(200, 200, 50, 50),
+            OBJ_DEFAULT_COLOR,
+        )?;
         // busext to RS2
         self.draw_line((250, 50, 250, 200), OBJ_DEFAULT_COLOR)?;
         // RD to RS2
@@ -257,8 +277,16 @@ impl<'a> Drawable for DebugWindow<'a> {
         // PSW register
         self.draw_rect(Rect::new(300, 200, 125, 75), OBJ_DEFAULT_COLOR)?;
         self.draw_static_str("PSW", Rect::new(325, 275, 75, 50), OBJ_DEFAULT_COLOR)?;
-        // busB to PSW
-        self.draw_line((310, 700, 310, 275), OBJ_DEFAULT_COLOR)?;
+        self.draw_string(
+            &format!("{}", dp.psw()),
+            Rect::new(325, 225, 75, 50),
+            OBJ_DEFAULT_COLOR,
+        )?;
+        // busB to PSW and SHam
+        self.draw_lines(
+            &[(310, 700, 310, 275), (310, 325, 500, 325)],
+            OBJ_DEFAULT_COLOR,
+        )?;
         // PSW to register file
         self.draw_line((300, 250, 290, 250), OBJ_DEFAULT_COLOR)?;
         self.draw_line((290, 250, 290, 475), OBJ_DEFAULT_COLOR)?;
@@ -266,23 +294,46 @@ impl<'a> Drawable for DebugWindow<'a> {
         // imm
         self.draw_rect(Rect::new(800, 100, 100, 50), OBJ_DEFAULT_COLOR)?;
         self.draw_static_str("IMM", Rect::new(910, 100, 75, 50), OBJ_DEFAULT_COLOR)?;
+        self.draw_string(
+            &format!("{:05x}", dp.imm()),
+            Rect::new(810, 100, 75, 50),
+            OBJ_DEFAULT_COLOR,
+        )?;
         // busEXT to imm
         self.draw_line((825, 50, 825, 100), OBJ_DEFAULT_COLOR)?;
         // dimm
         self.draw_rect(Rect::new(800, 250, 250, 75), OBJ_DEFAULT_COLOR)?;
         self.draw_static_str("DIn/DIMM", Rect::new(900, 325, 150, 50), OBJ_DEFAULT_COLOR)?;
+        self.draw_string(
+            &format!("{:08x}", dp.imm()),
+            Rect::new(800, 255, 250, 50),
+            OBJ_DEFAULT_COLOR,
+        )?;
         // busEXT to dimm
         self.draw_line((1000, 50, 1000, 250), OBJ_DEFAULT_COLOR)?;
-        // imm to dimm
-        self.draw_line((825, 150, 825, 250), OBJ_DEFAULT_COLOR)?;
+        // imm to dimm and SHAM
+        self.draw_lines(
+            &[
+                (825, 150, 825, 250),
+                (825, 175, 475, 175),
+                (475, 175, 475, 315),
+                (475, 315, 500, 315),
+            ],
+            OBJ_DEFAULT_COLOR,
+        )?;
         // op
         self.draw_rect(Rect::new(1100, 125, 50, 50), OBJ_DEFAULT_COLOR)?;
         self.draw_static_str("OP", Rect::new(1100, 175, 50, 50), OBJ_DEFAULT_COLOR)?;
+        self.draw_string(
+            &format!("{:02x}", dp.execute_op()),
+            Rect::new(1100, 125, 50, 50),
+            OBJ_DEFAULT_COLOR,
+        )?;
         // busext to op
         self.draw_line((1125, 50, 1125, 125), OBJ_DEFAULT_COLOR)?;
         // Shifter
         self.draw_rect(Rect::new(600, 500, 175, 300), OBJ_DEFAULT_COLOR)?;
-        self.draw_static_str("Shifter", Rect::new(600, 450, 100, 50), OBJ_DEFAULT_COLOR)?;
+        self.draw_static_str("Shifter", Rect::new(600, 800, 100, 50), OBJ_DEFAULT_COLOR)?;
 
         self.draw_circle((690, 650, 50), OBJ_DEFAULT_COLOR)?;
         // ALU
@@ -294,16 +345,65 @@ impl<'a> Drawable for DebugWindow<'a> {
         self.draw_static_str("ALU", Rect::new(900, 450, 75, 50), OBJ_DEFAULT_COLOR)?;
         // AI (ALU input latch)
         self.draw_rect(Rect::new(875, 500, 25, 120), OBJ_DEFAULT_COLOR)?;
-        self.draw_static_str("BAR", Rect::new(825, 450, 50, 50), OBJ_DEFAULT_COLOR)?;
+        self.draw_static_str("AI", Rect::new(825, 450, 50, 50), OBJ_DEFAULT_COLOR)?;
         // BI (ALU input latch)
         self.draw_rect(Rect::new(875, 680, 25, 120), OBJ_DEFAULT_COLOR)?;
 
         self.draw_static_str("BI", Rect::new(825, 800, 50, 50), OBJ_DEFAULT_COLOR)?;
         // BAR
-        self.draw_rect(Rect::new(800, 400, 25, 25), OBJ_DEFAULT_COLOR)?;
-        self.draw_static_str("BAR", Rect::new(830, 400, 75, 50), OBJ_DEFAULT_COLOR)?;
+        self.draw_rect(Rect::new(800, 400, 50, 50), OBJ_DEFAULT_COLOR)?;
+        self.draw_static_str("BAR", Rect::new(855, 400, 75, 50), OBJ_DEFAULT_COLOR)?;
+        self.draw_string(
+            &format!("{:02x}", dp.bar()),
+            Rect::new(800, 400, 50, 50),
+            OBJ_DEFAULT_COLOR,
+        )?;
+        // Bar to SHam
+        self.draw_lines(
+            &[
+                (810, 400, 810, 380),
+                (810, 380, 475, 380),
+                (475, 380, 475, 340),
+                (475, 340, 500, 340),
+            ],
+            OBJ_DEFAULT_COLOR,
+        )?;
+        // Busout
+        self.draw_lines(
+            &[
+                (1050, 750, 1450, 750),
+                (1450, 750, 1450, 50),
+                (1050, 525, 1050, 750),
+            ],
+            OBJ_DEFAULT_COLOR,
+        )?;
+        self.draw_static_str("busOUT", Rect::new(1400, 750, 100, 50), OBJ_DEFAULT_COLOR)?;
+        // PADS (pins in/out)
+        self.draw_rect(Rect::new(1300, 25, 100, 100), OBJ_DEFAULT_COLOR)?;
+        self.draw_static_str("PADS", Rect::new(1300, 125, 100, 50), OBJ_DEFAULT_COLOR)?;
+
+        // SDEC and SHAM
+        self.draw_rects(
+            &[Rect::new(550, 300, 150, 50), Rect::new(500, 300, 50, 50)],
+            OBJ_DEFAULT_COLOR,
+        )?;
+        self.draw_static_str("SHam", Rect::new(500, 250, 75, 50), OBJ_DEFAULT_COLOR)?;
+        self.draw_static_str("SDec", Rect::new(650, 250, 75, 50), OBJ_DEFAULT_COLOR)?;
+        self.draw_string(
+            &format!("{:02x}", dp.shifter().s_ham),
+            Rect::new(500, 300, 50, 50),
+            OBJ_DEFAULT_COLOR,
+        )?;
+        self.draw_string(
+            &format!("{:02x}", dp.shifter().s_dec),
+            Rect::new(600, 300, 50, 50),
+            OBJ_DEFAULT_COLOR,
+        )?;
+        // Connect SDec to Shifter
+        self.draw_line((600, 350, 700, 600), OBJ_DEFAULT_COLOR)?;
         // Draw the debug window.
         self.pane.canvas.present();
+
         Ok(())
     }
 

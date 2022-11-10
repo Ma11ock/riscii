@@ -36,7 +36,7 @@ pub const SIGN_BIT_LOC: u32 = 0x80000000;
 
 // Enums and structs.
 
-pub struct InstructionCycle([fn(dp: &mut DataPath); 4]);
+pub struct InstructionCycle(pub [fn(dp: &mut DataPath); 5]);
 
 pub fn noop(dp: &mut DataPath) {}
 
@@ -588,12 +588,12 @@ impl fmt::Display for Conditional {
 }
 
 impl InstructionCycle {
-    pub fn new(steps: [fn(dp: &mut DataPath); 4]) -> Self {
+    pub fn new(steps: [fn(dp: &mut DataPath); 5]) -> Self {
         Self { 0: steps }
     }
 
     pub fn noop_cycle() -> Self {
-        Self { 0: [noop; 4] }
+        Self { 0: [noop; 5] }
     }
 }
 
