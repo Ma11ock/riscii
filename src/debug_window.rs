@@ -202,6 +202,7 @@ impl<'a> Drawable for DebugWindow<'a> {
                 (815, 525, 815, 450),
                 (850, 525, 850, 575),
                 (850, 575, 875, 575),
+                (1275, 525, 1275, 800),
             ],
             OBJ_DEFAULT_COLOR,
         )?;
@@ -242,16 +243,30 @@ impl<'a> Drawable for DebugWindow<'a> {
         )?;
 
         // Now NXTPC.
-        self.draw_rect(Rect::new(1075, 500, 50, 300), OBJ_DEFAULT_COLOR)?;
-        self.draw_static_str("NXTPC", Rect::new(1050, 800, 100, 50), OBJ_DEFAULT_COLOR)?;
+        self.draw_rect(Rect::new(1075, 550, 300, 50), OBJ_DEFAULT_COLOR)?;
+        self.draw_static_str("NXTPC", Rect::new(1100, 600, 100, 50), OBJ_DEFAULT_COLOR)?;
+        self.draw_string(
+            &format!("{:08x}", dp.nxtpc()),
+            Rect::new(1075, 550, 300, 50),
+            OBJ_DEFAULT_COLOR,
+        )?;
         // Now PC.
-        self.draw_rect(Rect::new(1175, 500, 50, 300), OBJ_DEFAULT_COLOR)?;
-        self.draw_static_str("PC", Rect::new(1175, 800, 50, 50), OBJ_DEFAULT_COLOR)?;
-
+        self.draw_rect(Rect::new(1075, 675, 300, 50), OBJ_DEFAULT_COLOR)?;
+        self.draw_static_str("PC", Rect::new(1100, 725, 50, 50), OBJ_DEFAULT_COLOR)?;
+        self.draw_string(
+            &format!("{:08x}", dp.pc()),
+            Rect::new(1075, 675, 300, 50),
+            OBJ_DEFAULT_COLOR,
+        )?;
         // Now LSTPC.
-        self.draw_rect(Rect::new(1275, 500, 50, 300), OBJ_DEFAULT_COLOR)?;
-        self.draw_static_str("LSTPC", Rect::new(1250, 800, 100, 50), OBJ_DEFAULT_COLOR)?;
+        self.draw_rect(Rect::new(1075, 800, 300, 50), OBJ_DEFAULT_COLOR)?;
+        self.draw_static_str("LSTPC", Rect::new(1100, 850, 100, 50), OBJ_DEFAULT_COLOR)?;
 
+        self.draw_string(
+            &format!("{:08x}", dp.lstpc()),
+            Rect::new(1075, 800, 300, 50),
+            OBJ_DEFAULT_COLOR,
+        )?;
         // RD
         self.draw_rect(Rect::new(100, 75, 100, 50), OBJ_DEFAULT_COLOR)?;
         self.draw_static_str("RD", Rect::new(125, 125, 50, 50), OBJ_DEFAULT_COLOR)?;
@@ -374,7 +389,7 @@ impl<'a> Drawable for DebugWindow<'a> {
         self.draw_rect(Rect::new(800, 400, 50, 50), OBJ_DEFAULT_COLOR)?;
         self.draw_static_str("BAR", Rect::new(855, 400, 75, 50), OBJ_DEFAULT_COLOR)?;
         self.draw_string(
-            &format!("{:02x}", dp.bar()),
+            &format!("{:02b}", dp.bar()),
             Rect::new(800, 400, 50, 50),
             OBJ_DEFAULT_COLOR,
         )?;
@@ -391,13 +406,19 @@ impl<'a> Drawable for DebugWindow<'a> {
         // Busout
         self.draw_lines(
             &[
-                (1050, 750, 1450, 750),
-                (1450, 750, 1450, 50),
-                (1050, 525, 1050, 750),
+                (1050, 899, 1450, 899),
+                (1450, 899, 1450, 50),
+                (1050, 525, 1050, 899),
+                // Connection of busout to the *PCs.
+                (1075, 825, 1050, 825),
+                (1075, 700, 1050, 700),
+                (1075, 575, 1050, 575),
+                // Connection of the ALU to busOUT
+                (1000, 650, 1050, 650),
             ],
             OBJ_DEFAULT_COLOR,
         )?;
-        self.draw_static_str("busOUT", Rect::new(1400, 750, 100, 50), OBJ_DEFAULT_COLOR)?;
+        self.draw_static_str("busOUT", Rect::new(1450, 750, 100, 50), OBJ_DEFAULT_COLOR)?;
         // PADS (pins in/out)
         self.draw_rect(Rect::new(1300, 25, 100, 100), OBJ_DEFAULT_COLOR)?;
         self.draw_static_str("PADS", Rect::new(1300, 125, 100, 50), OBJ_DEFAULT_COLOR)?;

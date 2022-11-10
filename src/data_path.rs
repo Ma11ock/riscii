@@ -532,6 +532,26 @@ impl DataPath {
     pub fn shifter(&self) -> Shifter {
         self.shifter
     }
+
+    pub fn dst_latch(&self) -> u32 {
+        self.dst_latch
+    }
+
+    pub fn src_latch(&self) -> u32 {
+        self.shifter.src
+    }
+
+    pub fn lstpc(&self) -> u32 {
+        self.lstpc
+    }
+
+    pub fn pc(&self) -> u32 {
+        self.pc
+    }
+
+    pub fn nxtpc(&self) -> u32 {
+        self.nxtpc
+    }
 }
 
 impl Control {
