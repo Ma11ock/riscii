@@ -38,6 +38,8 @@ pub struct System {
     pins_out: OutputPins,
     /// True if the pipeline is currently suspended as a result of a memory operation.
     pipeline_suspended: bool,
+    /// True if the system's emulation is paused, false if not.
+    is_paused: bool,
 }
 
 impl System {
@@ -51,6 +53,7 @@ impl System {
             phase: Phase::One,
             pins_out: OutputPins::new(),
             pipeline_suspended: false,
+            is_paused: false,
         })
     }
 
@@ -58,7 +61,15 @@ impl System {
         &mut self.mem
     }
 
+    pub fn toggle_pause(&mut self) {
+        self.is_paused = !self.is_paused
+    }
+
     pub fn tick(&mut self) {
+        if self.is_paused {
+            return;
+        }
+
         let cur_phase = self.phase.clone();
         self.clock.tick_and_wait(cur_phase);
 

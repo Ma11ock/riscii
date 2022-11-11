@@ -17,15 +17,16 @@
 
 use config::Config;
 use sdl::{Context, Drawable, Pane};
-use sdl2::event::{Event, WindowEvent};
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::*;
+use std::cell::RefCell;
+use std::rc::Rc;
 use system::System;
 use util::Result;
 
 pub struct MainWindow<'a> {
     pane: Pane,
-    system: &'a System,
+    system: Rc<RefCell<System>>,
     config: &'a Config,
 }
 
@@ -49,7 +50,11 @@ impl<'a> Drawable for MainWindow<'a> {
 }
 
 impl<'a> MainWindow<'a> {
-    pub fn new(config: &'a Config, system: &'a System, context: &mut Context) -> Result<Self> {
+    pub fn new(
+        config: &'a Config,
+        system: Rc<RefCell<System>>,
+        context: &mut Context,
+    ) -> Result<Self> {
         Ok(Self {
             pane: Pane::new(
                 config.get_win_width(),
@@ -57,8 +62,8 @@ impl<'a> MainWindow<'a> {
                 format!("RISC II"),
                 context,
             )?,
-            system: system,
-            config: config,
+            system,
+            config,
         })
     }
 }

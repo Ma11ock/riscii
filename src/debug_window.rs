@@ -21,12 +21,14 @@ use sdl2::keyboard::Keycode;
 use sdl2::pixels::*;
 use sdl2::rect::Rect;
 use sdl2::ttf::{Font, Sdl2TtfContext};
+use std::cell::RefCell;
+use std::rc::Rc;
 use system::System;
 use util::Result;
 
 pub struct DebugWindow<'a> {
     pane: Pane,
-    system: &'a System,
+    system: Rc<RefCell<System>>,
     config: &'a Config,
     font: Font<'a, 'static>,
 }
@@ -34,7 +36,7 @@ pub struct DebugWindow<'a> {
 impl<'a> DebugWindow<'a> {
     pub fn new(
         config: &'a Config,
-        system: &'a System,
+        system: Rc<RefCell<System>>,
         context: &mut Context,
         ttf: &'a mut Sdl2TtfContext,
     ) -> Result<Self> {
@@ -47,9 +49,9 @@ impl<'a> DebugWindow<'a> {
         let debug_font = { ttf.load_font("debug.otf", 20)? };
         Ok(Self {
             font: debug_font,
-            pane: pane,
-            system: system,
-            config: config,
+            pane,
+            system,
+            config,
         })
     }
 
@@ -121,11 +123,13 @@ impl<'a> Drawable for DebugWindow<'a> {
         const OBJ_DEFAULT_COLOR: Color = Color::RGB(0xFF, 0xFF, 0xFF);
         const OBJ_USE_COLOR: Color = Color::RGB(0xFa, 0x10, 0x10);
 
-        let dp = self.system.data_path(); // Data path reference.
+        let system = self.system.clone();
+        let system = system.borrow();
+        let dp = system.data_path(); // Data path reference.
 
         // Describe the phase of the clock.
         self.draw_static_str(
-            match self.system.phase() {
+            match system.phase() {
                 Phase::One => "φ₁",
                 Phase::Two => "φ₂",
                 Phase::Three => "φ₃",
@@ -448,7 +452,14 @@ impl<'a> Drawable for DebugWindow<'a> {
         Ok(())
     }
 
-    fn handle_key_down(&mut self, kc: Keycode) {}
+    fn handle_key_down(&mut self, kc: Keycode) {
+        match kc {
+            Keycode::P => {
+                self.system.clone().borrow_mut().toggle_pause();
+            }
+            _ => {}
+        }
+    }
     fn handle_key_up(&mut self, kc: Keycode) {}
     fn get_window_id(&self) -> u32 {
         self.pane.get_id()

@@ -44,7 +44,9 @@ use config::Config;
 use debug_window::DebugWindow;
 use sdl::{make_font_context, Context, Drawable};
 use sdl2::event::{Event, WindowEvent};
+use std::cell::RefCell;
 use std::error::Error;
+use std::rc::Rc;
 use system::System;
 use window::MainWindow;
 
@@ -123,21 +125,21 @@ fn handle_events(
 fn main() -> Result<(), Box<dyn Error>> {
     let config = Config::init()?;
 
-    let system = System::new(&config)?;
     println!(
         "Running emulator with the following configuration: \n{}\n",
         config
     );
+    let system = Rc::new(RefCell::new(System::new(&config)?));
     //println!("Opening binary file {}.", path);
     //let program = fs::read(path)?;
     let mut sdl_context = Context::new()?;
     let mut font_context = make_font_context()?;
 
-    let mut main_window = MainWindow::new(&config, &system, &mut sdl_context)?;
+    let mut main_window = MainWindow::new(&config, system.clone(), &mut sdl_context)?;
     let mut debug_window = if config.is_debug_mode() {
         Some(DebugWindow::new(
             &config,
-            &system,
+            system.clone(),
             &mut sdl_context,
             &mut font_context,
         )?)
@@ -155,13 +157,14 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
             _ => {}
         }
+        system.borrow_mut().tick();
         debug_window = if let Some(mut win) = debug_window {
-            win.draw(&mut sdl_context);
+            win.draw(&mut sdl_context)?;
             Some(win)
         } else {
             None
         };
-        main_window.draw(&mut sdl_context);
+        main_window.draw(&mut sdl_context)?;
     }
     Ok(())
 }

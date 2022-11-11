@@ -14,13 +14,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alu::ALU;
-use config::Config;
 use cpu::{OutputPins, ProcessorStatusWord, RegisterFile, SIZEOF_INSTRUCTION};
 use instruction::*;
-use memory::Memory;
 use shifter::Shifter;
 use std::fmt;
-use util::Result;
 
 pub struct SCCBits {
     pub z: bool,
