@@ -38,7 +38,6 @@ pub mod sdl;
 pub mod shifter;
 pub mod system;
 pub mod util;
-pub mod window;
 
 use config::Config;
 use debug_window::DebugWindow;
@@ -48,7 +47,6 @@ use std::cell::RefCell;
 use std::error::Error;
 use std::rc::Rc;
 use system::System;
-use window::MainWindow;
 
 // Struct/enum declarations.
 
@@ -58,14 +56,9 @@ enum GlobalAction {
     CloseDebugWindow,
 }
 
-fn handle_events(
-    context: &mut Context,
-    win: &mut MainWindow,
-    debug_window: &mut Option<DebugWindow>,
-) -> GlobalAction {
+fn handle_events(context: &mut Context, debug_window: &mut DebugWindow) -> GlobalAction {
     let event_pump = &mut context.event_pump;
     let mut result = GlobalAction::None;
-    let main_win_id = win.get_window_id();
     for event in event_pump.poll_iter() {
         match event {
             Event::Quit { .. } => {
@@ -73,48 +66,19 @@ fn handle_events(
             }
             Event::Window {
                 win_event: WindowEvent::Close,
-                window_id: id,
                 ..
             } => {
-                if id == main_win_id {
-                    return GlobalAction::QuitProgram;
-                } else if let Some(dwin) = debug_window {
-                    if dwin.get_window_id() == id {
-                        result = GlobalAction::CloseDebugWindow;
-                        continue;
-                    }
-                }
-                eprintln!("Close for window id {}, but it does not exist!", id);
+                return GlobalAction::QuitProgram;
             }
             Event::KeyDown {
-                keycode: Some(kc),
-                window_id: id,
-                ..
+                keycode: Some(kc), ..
             } => {
-                if id == main_win_id {
-                    win.handle_key_down(kc);
-                } else if let Some(dwin) = debug_window {
-                    if dwin.get_window_id() == id {
-                        dwin.handle_key_down(kc);
-                        continue;
-                    }
-                }
-                eprintln!("Keydown event for window id {}, but it does not exist!", id);
+                debug_window.handle_key_down(kc);
             }
             Event::KeyUp {
-                keycode: Some(kc),
-                window_id: id,
-                ..
+                keycode: Some(kc), ..
             } => {
-                if id == main_win_id {
-                    win.handle_key_up(kc);
-                } else if let Some(dwin) = debug_window {
-                    if dwin.get_window_id() == id {
-                        dwin.handle_key_up(kc);
-                        continue;
-                    }
-                }
-                eprintln!("Keyup event for window id {}, but it does not exist!", id);
+                debug_window.handle_key_up(kc);
             }
             _ => {}
         }
@@ -135,7 +99,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut sdl_context = Context::new()?;
     let mut font_context = make_font_context()?;
 
-    let mut main_window = MainWindow::new(&config, system.clone(), &mut sdl_context)?;
     let mut debug_window = if config.is_debug_mode() {
         Some(DebugWindow::new(
             &config,
@@ -148,23 +111,22 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     'running: loop {
-        match { handle_events(&mut sdl_context, &mut main_window, &mut debug_window) } {
-            GlobalAction::QuitProgram => {
-                break 'running;
-            }
-            GlobalAction::CloseDebugWindow => {
-                debug_window = None;
-            }
-            _ => {}
-        }
         system.borrow_mut().tick();
         debug_window = if let Some(mut win) = debug_window {
+            match { handle_events(&mut sdl_context, &mut win) } {
+                GlobalAction::QuitProgram => {
+                    break 'running;
+                }
+                GlobalAction::CloseDebugWindow => {
+                    debug_window = None;
+                }
+                _ => {}
+            }
             win.draw(&mut sdl_context)?;
             Some(win)
         } else {
             None
         };
-        main_window.draw(&mut sdl_context)?;
     }
     Ok(())
 }
