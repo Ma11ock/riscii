@@ -354,23 +354,23 @@ impl DataPath {
         // Match opcode's prefix.
         match opcode >> 4 {
             0 => match opcode & 0xf {
-                1 => {
+                0x1 => {
                     // Calli TODO.
                 }
-                2 => {
+                0x2 => {
                     // GetPSW
                 }
-                3 => {
+                0x3 => {
                     // GetLPC
                 }
-                4 => {
+                0x4 => {
                     // PutPSW
                     dst_is_psw = true;
                 }
-                8 => {
+                0x8 => {
                     // Callx
                 }
-                9 => {
+                0x9 => {
                     // Callr
                     long = true;
                     immediate = true;
@@ -389,7 +389,7 @@ impl DataPath {
                         ],
                     };
                 }
-                12 => {
+                0xc => {
                     // Jmpx
                     result = InstructionCycle {
                         0: [
@@ -405,15 +405,15 @@ impl DataPath {
                         ],
                     };
                 }
-                13 => {
+                0xd => {
                     // Jmpr
                     long = true;
                     immediate = true;
                 }
-                14 => {
+                0xe => {
                     // Ret
                 }
-                15 => {
+                0xf => {
                     // Reti
                 }
                 _ => {}
